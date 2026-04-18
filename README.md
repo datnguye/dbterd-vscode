@@ -8,13 +8,11 @@ by [`dbterd`](https://github.com/datnguye/dbterd) under the hood.
 
 ## Install
 
-From the VS Code Marketplace: search for **dbt ERD** and click Install.
-
-Or grab a `.vsix` from the [Releases page](https://github.com/datnguye/dbterd-vscode/releases)
-and install with:
+From the [VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=datnguye.dbterd-vscode):
+search for **dbt ERD** and click Install, or run:
 
 ```bash
-code --install-extension dbterd-vscode-<version>.vsix
+code --install-extension datnguye.dbterd-vscode
 ```
 
 You'll need Python 3.10+ on `PATH` — the extension spawns a small FastAPI
