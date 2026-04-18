@@ -1,0 +1,42 @@
+.erd-toolbar {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  z-index: 10;
+  display: flex;
+  gap: 4px;
+  padding: 4px;
+  background: var(--vscode-editor-background, #1e1e1e);
+  border: 1px solid var(--vscode-widget-border, #3c3c3c);
+  border-radius: 6px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+}
+
+.erd-toolbar-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  background: transparent;
+  color: var(--vscode-foreground, #d4d4d4);
+  border: 1px solid transparent;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background 0.1s ease, border-color 0.1s ease;
+}
+
+.erd-toolbar-btn:hover {
+  background: var(--vscode-toolbar-hoverBackground, #2a2d2e);
+  border-color: var(--vscode-focusBorder, #007acc);
+}
+
+.erd-toolbar-btn:active {
+  background: var(--vscode-toolbar-activeBackground, #3c3c3c);
+}
+
+.erd-toolbar-btn:focus-visible {
+  outline: 2px solid var(--vscode-focusBorder, #007acc);
+  outline-offset: 1px;
+}

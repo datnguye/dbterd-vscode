@@ -21,3 +21,45 @@ html, body, #root {
 .status.error {
   color: var(--vscode-errorForeground, #f48771);
 }
+
+/* Edges: default 1px lines disappear against the VS Code theme. Bump width
+   and tint to the focus color so relationships read clearly. */
+.react-flow__edge-path {
+  stroke: var(--vscode-focusBorder, #007acc);
+  stroke-width: 2;
+}
+
+.react-flow__edge.selected .react-flow__edge-path,
+.react-flow__edge:focus .react-flow__edge-path,
+.react-flow__edge:focus-visible .react-flow__edge-path {
+  stroke: var(--vscode-charts-yellow, #e5c07b);
+  stroke-width: 3;
+}
+
+.react-flow__edge.animated .react-flow__edge-path {
+  stroke-dasharray: 6 4;
+}
+
+/* Composite edges (multi-column FKs) don't go through React Flow's built-in
+   edge pipeline, so we replicate its dash animation on our own <path>s. */
+.erd-composite-bundle,
+.erd-composite-tail {
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  fill: none;
+}
+
+.erd-composite-bundle,
+.erd-composite-tail.animated {
+  stroke-dasharray: 6 4;
+  animation: erd-dash 0.5s linear infinite;
+}
+
+@keyframes erd-dash {
+  from {
+    stroke-dashoffset: 10;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}

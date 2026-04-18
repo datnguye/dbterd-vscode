@@ -4,9 +4,11 @@ A VS Code extension that turns your dbt project into an interactive ERD — zoom
 pan, click a table to open its SQL, follow FK edges like breadcrumbs. Powered
 by [`dbterd`](https://github.com/datnguye/dbterd) under the hood.
 
+![dbt ERD rendering the jaffle-shop marts with a .dbterd.yml config side-by-side](./docs/images/erd-showcase.png)
+
 ## Install
 
-From the VS Code Marketplace: search for **dbterd ERD** and click Install.
+From the VS Code Marketplace: search for **dbt ERD** and click Install.
 
 Or grab a `.vsix` from the [Releases page](https://github.com/datnguye/dbterd-vscode/releases)
 and install with:
@@ -32,7 +34,7 @@ server that wraps the `dbterd` library.
 |--------------------------|---------------|---------------------------------------------------------|
 | `dbterd.dbtProjectPath`  | `""`          | Absolute path to the dbt project root.                  |
 | `dbterd.serverPort`      | `0`           | Port for the local server. `0` = auto-pick.             |
-| `dbterd.pythonPath`      | `"python3"`   | Python interpreter used to launch the server.           |
+| `dbterd.pythonPath`      | `""`          | Optional override for the base Python interpreter. Leave empty to auto-detect (dbt project `.venv` → `$VIRTUAL_ENV` → `python3` on PATH). |
 
 ## How it works
 
@@ -72,5 +74,17 @@ but merges still need a human to click the button — well done, human drivers �
 
 <a href="https://github.com/datnguye/dbterd-vscode/graphs/contributors">
   <img src="https://contrib.rocks/image?repo=datnguye/dbterd-vscode" />
+</a>
+
+## Support
+
+⭐ **If this extension is useful, please [star the repo on GitHub](https://github.com/datnguye/dbterd-vscode)** — it helps others discover it and keeps the maintainer motivated to keep shipping.
+
+🍰 And if this extension saves you from squinting at `manifest.json` at 2 AM,
+consider sponsoring a coffee — or, in 2026 currency, roughly 1M Claude tokens.
+Either way, the late-night bug hunts stay fueled and the agents stay fed.
+
+<a href="https://buymeacoffee.com/datnguye">
+  <img src="https://img.buymeacoffee.com/button-api/?text=Buy me tokens&emoji=☕&slug=datnguye&button_colour=FF694A&font_colour=ffffff&outline_colour=000000&coffee_colour=FFDD00" alt="Buy Me a Coffee" height="50" />
 </a>
 

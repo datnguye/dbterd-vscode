@@ -74,7 +74,7 @@ async function waitForErdTab(timeoutMs: number): Promise<boolean> {
   while (Date.now() < deadline) {
     const found = vscode.window.tabGroups.all
       .flatMap((g) => g.tabs)
-      .some((t) => t.label === "dbterd ERD");
+      .some((t) => t.label === "dbt ERD");
     if (found) return true;
     await new Promise((r) => setTimeout(r, 100));
   }

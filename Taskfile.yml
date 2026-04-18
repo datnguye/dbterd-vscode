@@ -128,9 +128,43 @@ tasks:
     deps:
       - build
     cmds:
+      - rm -f extension/*.vsix
       - mkdir -p extension/media
       - rsync -a --delete webview/dist/ extension/media/
-      - cd extension && npx --yes @vscode/vsce package --no-dependencies --readme-path ../README.md
+      - mkdir -p extension/server-src/src
+      - rsync -a --delete --exclude '__pycache__' --exclude '*.pyc' server/src/ extension/server-src/src/
+      - cp server/pyproject.toml extension/server-src/pyproject.toml
+      - cp server/uv.lock extension/server-src/uv.lock
+      - cp README.md extension/README.md
+      - cd extension && npx --yes @vscode/vsce package --no-dependencies
+
+  package:dev:
+    desc: Build a .vsix with a dynamic dev version (base-dev.{sha}.{timestamp}).
+    deps:
+      - build
+    cmds:
+      - rm -f extension/*.vsix
+      - mkdir -p extension/media
+      - rsync -a --delete webview/dist/ extension/media/
+      - mkdir -p extension/server-src/src
+      - rsync -a --delete --exclude '__pycache__' --exclude '*.pyc' server/src/ extension/server-src/src/
+      - cp server/pyproject.toml extension/server-src/pyproject.toml
+      - cp server/uv.lock extension/server-src/uv.lock
+      - cp README.md extension/README.md
+      # Snapshot package.json, overwrite with dev version, package, restore.
+      # `trap` guarantees the restore fires even if vsce fails.
+      - |
+        set -e
+        cd extension
+        cp package.json package.json.bak
+        trap 'mv package.json.bak package.json' EXIT
+        BASE=$(node -p "require('./package.json').version.split('-')[0]")
+        SHA=$(git rev-parse --short HEAD 2>/dev/null || echo nogit)
+        STAMP=$(date -u +%Y%m%d%H%M%S)
+        DEV_VERSION="${BASE}-dev.${SHA}.${STAMP}"
+        echo "[package:dev] version = ${DEV_VERSION}"
+        node -e "const p=require('./package.json'); p.version='${DEV_VERSION}'; require('fs').writeFileSync('package.json', JSON.stringify(p, null, 2)+'\n')"
+        npx --yes @vscode/vsce package --no-dependencies --pre-release
 
   sync-contract:
     desc: Regenerate webview/src/types/erd.ts from the Pydantic schemas.
@@ -145,7 +179,7 @@ tasks:
   clean:
     desc: Remove build artefacts and caches (does not touch node_modules / .venv).
     cmds:
-      - rm -rf webview/dist extension/dist extension/media extension/*.vsix
+      - rm -rf webview/dist extension/dist extension/media extension/server-src extension/*.vsix
       - rm -rf server/.pytest_cache server/.ruff_cache server/.coverage
       - rm -f webview/tsconfig.tsbuildinfo
 

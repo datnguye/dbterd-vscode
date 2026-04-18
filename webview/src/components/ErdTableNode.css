@@ -68,3 +68,59 @@
 .erd-column-type {
   color: var(--vscode-descriptionForeground, #808080);
 }
+
+.erd-table-icon {
+  display: inline-flex;
+  align-items: center;
+  color: #FF694A; /* dbt brand orange — keeps the mark distinctive at a glance */
+}
+
+.erd-table-expand {
+  display: block;
+  width: 100%;
+  padding: 4px 10px;
+  background: transparent;
+  color: var(--vscode-textLink-foreground, #3794ff);
+  border: none;
+  border-top: 1px dashed var(--vscode-widget-border, #3c3c3c);
+  text-align: center;
+  cursor: pointer;
+  font-size: 11px;
+  font-family: inherit;
+}
+
+.erd-table-expand:hover {
+  background: var(--vscode-list-hoverBackground, #2a2d2e);
+}
+
+/* React Flow's default handle is a 6x6 tan square — near-invisible against
+   our table chrome. Bump to a 10px circle in the VS Code focus-border color. */
+.erd-table .react-flow__handle {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--vscode-focusBorder, #007acc);
+  border: 2px solid var(--vscode-editor-background, #1e1e1e);
+  opacity: 0.85;
+}
+
+.erd-table .react-flow__handle:hover {
+  opacity: 1;
+  transform: scale(1.25);
+}
+
+/* Table-level fallback handles (__table_in / __table_out) — invisible by
+   default. They still function as anchor points when an edge can't resolve
+   to a specific column, but they shouldn't clutter the canvas when unused.
+   A lightweight hover reveal helps debugging without permanent chrome. */
+.erd-table .react-flow__handle[data-handleid="__table_in"],
+.erd-table .react-flow__handle[data-handleid="__table_out"] {
+  top: 50%;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.erd-table:hover .react-flow__handle[data-handleid="__table_in"],
+.erd-table:hover .react-flow__handle[data-handleid="__table_out"] {
+  opacity: 0.3;
+}

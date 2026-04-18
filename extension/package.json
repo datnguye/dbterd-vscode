@@ -1,14 +1,15 @@
 {
   "name": "dbterd-vscode",
-  "displayName": "dbterd ERD",
+  "displayName": "dbt ERD",
   "description": "Visualize your dbt project as an interactive ERD.",
-  "version": "0.0.1",
+  "version": "0.0.3",
   "publisher": "datnguye",
   "engines": {
     "vscode": "^1.85.0"
   },
   "categories": ["Visualization", "Data Science"],
   "keywords": ["dbt", "erd", "data modeling", "dbterd", "visualization"],
+  "icon": "icon.png",
   "bugs": {
     "url": "https://github.com/datnguye/dbterd-vscode/issues"
   },
@@ -19,11 +20,15 @@
     "commands": [
       {
         "command": "dbterd.openErd",
-        "title": "dbterd: Open ERD"
+        "title": "dbt ERD: Open"
       },
       {
         "command": "dbterd.refresh",
-        "title": "dbterd: Refresh ERD"
+        "title": "dbt ERD: Refresh"
+      },
+      {
+        "command": "dbterd.reloadServer",
+        "title": "dbt ERD: Reload Server"
       }
     ],
     "configuration": {
@@ -41,8 +46,8 @@
         },
         "dbterd.pythonPath": {
           "type": "string",
-          "default": "python3",
-          "description": "Python interpreter used to launch dbterd-server (e.g. /path/to/.venv/bin/python)."
+          "default": "",
+          "description": "Optional override for the base Python interpreter used to bootstrap the managed server venv. Leave empty to auto-detect (dbt project .venv → $VIRTUAL_ENV → python3 on PATH)."
         }
       }
     }

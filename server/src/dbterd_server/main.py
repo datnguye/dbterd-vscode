@@ -1,10 +1,10 @@
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
-from datetime import datetime, timezone
 
-from fastapi import FastAPI, HTTPException, Request, status
+from fastapi import FastAPI, HTTPException, Request, Response, status
 from fastapi.middleware.cors import CORSMiddleware
 
+from dbterd_server.erd import ErdBuildError, ManifestMissingError, build_erd
 from dbterd_server.schemas import ErdPayload, HealthStatus
 
 
@@ -24,6 +24,7 @@ app.add_middleware(
     allow_origin_regex=r"^(vscode-webview://.*|https?://(localhost|127\.0\.0\.1)(:\d+)?)$",
     allow_methods=["GET"],
     allow_headers=["Content-Type"],
+    expose_headers=["X-Erd-Warnings"],
 )
 
 
@@ -33,16 +34,14 @@ async def healthz() -> HealthStatus:
 
 
 @app.get("/erd", response_model=ErdPayload)
-async def get_erd(request: Request) -> ErdPayload:
+async def get_erd(request: Request, response: Response) -> ErdPayload:
     project_path: str = getattr(request.app.state, "project_path", "")
-    if not project_path:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="No dbt project path configured.",
-        )
-    return ErdPayload(
-        nodes=[],
-        edges=[],
-        generated_at=datetime.now(timezone.utc),
-        dbt_project_name="",
-    )
+    try:
+        result = build_erd(project_path)
+    except ManifestMissingError as err:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(err)) from err
+    except ErdBuildError as err:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(err)) from err
+    if result.catalog_missing:
+        response.headers["X-Erd-Warnings"] = "catalog-missing"
+    return result.payload
