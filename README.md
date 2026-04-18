@@ -24,7 +24,7 @@ server that wraps the `dbterd` library.
 2. Run **dbterd: Open ERD**.
 3. The ERD opens in a new panel. Click a table header to jump to its SQL.
 4. Run **dbterd: Refresh ERD** after `dbt compile` / `dbt docs generate` to
-   pick up manifest changes.
+   pick up manifest changes, or after editing `.dbterd.yml`.
 
 ## Settings
 
