@@ -50,6 +50,13 @@ jobs:
           mkdir -p extension/media
           rsync -a --delete webview/dist/ extension/media/
 
+      - name: Bundle server source into extension
+        run: |
+          mkdir -p extension/server-src/src
+          rsync -a --delete --exclude '__pycache__' --exclude '*.pyc' server/src/ extension/server-src/src/
+          cp server/pyproject.toml extension/server-src/pyproject.toml
+          cp server/uv.lock extension/server-src/uv.lock
+
       - name: Copy root README into extension
         run: cp README.md extension/README.md
 
