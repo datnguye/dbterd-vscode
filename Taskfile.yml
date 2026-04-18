@@ -78,10 +78,11 @@ tasks:
       - npm test -- --run
 
   test:extension:
-    desc: Typecheck the extension (no runtime tests yet).
+    desc: Typecheck the extension and run the end-to-end suite (@vscode/test-electron).
     dir: extension
     cmds:
       - npm run check-types
+      - npm test
 
   lint:
     desc: Lint and format-check across all workspaces.

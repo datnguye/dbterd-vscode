@@ -1,0 +1,5 @@
+{
+    "dbterd.dbtProjectPath": "/Users/ilambda/sources/datnguye/dbterd-vscode/extension/src/test/fixtures/jaffle-shop",
+    "dbterd.pythonPath": "/Users/ilambda/sources/datnguye/dbterd-vscode/server/.venv/bin/python",
+    "dbterd.serverPort": 0
+}

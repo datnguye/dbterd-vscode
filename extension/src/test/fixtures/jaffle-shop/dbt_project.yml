@@ -1,0 +1,8 @@
+config-version: 2
+
+name: "jaffle_shop"
+version: "3.0.0"
+profile: jaffle_shop
+
+model-paths: ["models"]
+target-path: "target"

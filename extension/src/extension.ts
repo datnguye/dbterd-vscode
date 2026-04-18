@@ -2,9 +2,17 @@ import * as vscode from "vscode";
 import { DbterdServer } from "./server";
 import { ErdPanel } from "./webview";
 
+// Surface exposed to integration tests (via vscode.extensions.getExtension(...).exports).
+// Production callers should not depend on this shape — it exists so e2e tests can verify
+// the extension's live state without poking at private instance vars.
+export interface DbterdExtensionApi {
+  getServerUrl(): string | undefined;
+  hasPanel(): boolean;
+}
+
 let server: DbterdServer | undefined;
 
-export async function activate(context: vscode.ExtensionContext): Promise<void> {
+export async function activate(context: vscode.ExtensionContext): Promise<DbterdExtensionApi> {
   server = new DbterdServer();
   context.subscriptions.push(server);
 
@@ -22,6 +30,11 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
       ErdPanel.current?.refresh();
     }),
   );
+
+  return {
+    getServerUrl: () => server?.currentUrl,
+    hasPanel: () => ErdPanel.current !== undefined,
+  };
 }
 
 export function deactivate(): void {

@@ -25,6 +25,10 @@ export class DbterdServer implements vscode.Disposable {
     return this.starting;
   }
 
+  get currentUrl(): string | undefined {
+    return this.url;
+  }
+
   private spawnServer(): Promise<string> {
     const config = vscode.workspace.getConfiguration("dbterd");
     const projectPath = config.get<string>("dbtProjectPath") ?? "";
