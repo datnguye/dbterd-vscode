@@ -1,0 +1,70 @@
+name: ci
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  server:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+          cache-dependency-glob: "server/uv.lock"
+          python-version: "3.10"
+      - name: Sync deps
+        working-directory: server
+        run: uv sync --frozen --group dev
+      - name: Ruff format
+        working-directory: server
+        run: uv run ruff format --check .
+      - name: Ruff lint
+        working-directory: server
+        run: uv run ruff check .
+      - name: Pytest with coverage gate
+        working-directory: server
+        run: uv run pytest --cov=dbterd_server --cov-report=term-missing --cov-fail-under=100
+
+  webview:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: webview/package-lock.json
+      - working-directory: webview
+        run: npm ci
+      - working-directory: webview
+        run: npm run typecheck
+      - working-directory: webview
+        run: npm test -- --run
+      - working-directory: webview
+        run: npm run build
+
+  extension:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: extension/package-lock.json
+      - working-directory: extension
+        run: npm ci
+      - working-directory: extension
+        run: npm run check-types
+      - working-directory: extension
+        run: npm run package

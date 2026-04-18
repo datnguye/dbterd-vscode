@@ -80,7 +80,6 @@ out
 
 # Nuxt.js build / generate output
 .nuxt
-dist
 
 # Gatsby files
 .cache/
@@ -137,3 +136,25 @@ dist
 # Vite logs files
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# VS Code extension packaging
+*.vsix
+extension/media/
+extension/dist/
+extension/out/
+webview/dist/
+
+# go-task cache
+.task/
+
+# Local Claude settings
+.claude/settings.local.json

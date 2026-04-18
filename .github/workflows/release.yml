@@ -1,0 +1,81 @@
+name: release
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.event.release.tag_name }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.release.tag_name }}
+
+      - name: Parse tag
+        id: tag
+        env:
+          TAG: ${{ github.event.release.tag_name }}
+          IS_PRERELEASE: ${{ github.event.release.prerelease }}
+        run: |
+          VERSION="${TAG#v}"
+          {
+            echo "version=$VERSION"
+            echo "prerelease=$IS_PRERELEASE"
+          } >> "$GITHUB_OUTPUT"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: |
+            webview/package-lock.json
+            extension/package-lock.json
+
+      - name: Build webview
+        working-directory: webview
+        run: |
+          npm ci
+          npm run build
+
+      - name: Bundle webview into extension
+        run: |
+          mkdir -p extension/media
+          rsync -a --delete webview/dist/ extension/media/
+
+      - name: Install & version extension
+        working-directory: extension
+        run: |
+          npm ci
+          npm version --no-git-tag-version "${{ steps.tag.outputs.version }}"
+
+      - name: Package .vsix
+        working-directory: extension
+        run: |
+          ARGS=(--no-dependencies --readme-path ../README.md --out "dbterd-vscode-${{ steps.tag.outputs.version }}.vsix")
+          if [ "${{ steps.tag.outputs.prerelease }}" = "true" ]; then
+            ARGS+=(--pre-release)
+          fi
+          npx --yes @vscode/vsce package "${ARGS[@]}"
+
+      - name: Upload .vsix to the Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release upload "${{ github.event.release.tag_name }}" \
+            "extension/dbterd-vscode-${{ steps.tag.outputs.version }}.vsix" \
+            --clobber
+
+      - name: Publish to VS Code Marketplace
+        if: steps.tag.outputs.prerelease != 'true'
+        working-directory: extension
+        env:
+          VSCE_PAT: ${{ secrets.VSCE_PAT }}
+        run: npx --yes @vscode/vsce publish --no-dependencies --packagePath "dbterd-vscode-${{ steps.tag.outputs.version }}.vsix"

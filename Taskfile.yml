@@ -1,0 +1,156 @@
+version: "3"
+
+silent: true
+
+tasks:
+  default:
+    desc: List available tasks.
+    cmds:
+      - task --list
+
+  install:
+    desc: Install dependencies for all three workspaces.
+    cmds:
+      - task: install:server
+      - task: install:webview
+      - task: install:extension
+
+  install:server:
+    desc: Sync the server's uv environment (incl. dev group).
+    dir: server
+    cmds:
+      - uv sync --group dev
+
+  install:webview:
+    desc: Install webview npm dependencies.
+    dir: webview
+    cmds:
+      - npm install
+
+  install:extension:
+    desc: Install extension npm dependencies.
+    dir: extension
+    cmds:
+      - npm install
+
+  dev:
+    desc: Start server, webview dev, and extension watcher in parallel.
+    deps:
+      - dev:server
+      - dev:webview
+      - dev:extension
+
+  dev:server:
+    desc: Run the FastAPI server with --reload on :8581.
+    dir: server
+    cmds:
+      - uv run uvicorn dbterd_server.main:app --reload --port 8581
+
+  dev:webview:
+    desc: Run the Vite dev server for the webview.
+    dir: webview
+    cmds:
+      - npm run dev
+
+  dev:extension:
+    desc: Run the extension's esbuild + tsc watchers.
+    dir: extension
+    cmds:
+      - npm run watch
+
+  test:
+    desc: Run all three test suites.
+    cmds:
+      - task: test:server
+      - task: test:webview
+      - task: test:extension
+
+  test:server:
+    desc: Pytest with the 100% coverage gate.
+    dir: server
+    cmds:
+      - uv run pytest --cov=dbterd_server --cov-report=term-missing --cov-fail-under=100
+
+  test:webview:
+    desc: Run vitest once (CI mode).
+    dir: webview
+    cmds:
+      - npm test -- --run
+
+  test:extension:
+    desc: Typecheck the extension (no runtime tests yet).
+    dir: extension
+    cmds:
+      - npm run check-types
+
+  lint:
+    desc: Lint and format-check across all workspaces.
+    cmds:
+      - task: lint:server
+      - task: lint:webview
+      - task: lint:extension
+
+  lint:server:
+    desc: Ruff format-check and lint.
+    dir: server
+    cmds:
+      - uv run ruff format --check .
+      - uv run ruff check .
+
+  lint:webview:
+    desc: TypeScript typecheck for the webview.
+    dir: webview
+    cmds:
+      - npm run typecheck
+
+  lint:extension:
+    desc: TypeScript typecheck for the extension host.
+    dir: extension
+    cmds:
+      - npm run check-types
+
+  format:
+    desc: Apply Ruff formatting to the server.
+    dir: server
+    cmds:
+      - uv run ruff format .
+      - uv run ruff check --fix .
+
+  build:
+    desc: Build the webview bundle.
+    dir: webview
+    cmds:
+      - npm run build
+
+  package:
+    desc: Build a .vsix locally for sideload testing (releases are tag-driven).
+    deps:
+      - build
+    cmds:
+      - mkdir -p extension/media
+      - rsync -a --delete webview/dist/ extension/media/
+      - cd extension && npx --yes @vscode/vsce package --no-dependencies --readme-path ../README.md
+
+  sync-contract:
+    desc: Regenerate webview/src/types/erd.ts from the Pydantic schemas.
+    cmds:
+      - >-
+        cd server && uv run python -m dbterd_server.codegen
+        | npx --yes -p json-schema-to-typescript json2ts
+        --bannerComment "// AUTO-GENERATED from server/src/dbterd_server/schemas.py — do not edit by hand.\n// Regenerate with: task sync-contract"
+        > ../webview/src/types/erd.ts
+      - cd webview && npx --no-install tsc --noEmit
+
+  clean:
+    desc: Remove build artefacts and caches (does not touch node_modules / .venv).
+    cmds:
+      - rm -rf webview/dist extension/dist extension/media extension/*.vsix
+      - rm -rf server/.pytest_cache server/.ruff_cache server/.coverage
+      - rm -f webview/tsconfig.tsbuildinfo
+
+  clean:all:
+    desc: Like clean, plus blow away node_modules and .venv.
+    deps:
+      - clean
+    cmds:
+      - rm -rf webview/node_modules extension/node_modules server/.venv
