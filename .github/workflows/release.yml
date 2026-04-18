@@ -62,7 +62,7 @@ jobs:
       - name: Package .vsix
         working-directory: extension
         run: |
-          ARGS=(--no-dependencies --readme-path ./README.md --out "dbterd-vscode-${{ steps.tag.outputs.version }}.vsix")
+          ARGS=(--no-dependencies --out "dbterd-vscode-${{ steps.tag.outputs.version }}.vsix")
           if [ "${{ steps.tag.outputs.prerelease }}" = "true" ]; then
             ARGS+=(--pre-release)
           fi
