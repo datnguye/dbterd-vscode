@@ -1,0 +1,1 @@
+- [v0.0.1 stable release](project_v0_0_1_release.md) — First stable release cut 2026-04-18; publishes to VS Code Marketplace

@@ -50,6 +50,9 @@ jobs:
           mkdir -p extension/media
           rsync -a --delete webview/dist/ extension/media/
 
+      - name: Copy root README into extension
+        run: cp README.md extension/README.md
+
       - name: Install & version extension
         working-directory: extension
         run: |
@@ -59,7 +62,7 @@ jobs:
       - name: Package .vsix
         working-directory: extension
         run: |
-          ARGS=(--no-dependencies --readme-path ../README.md --out "dbterd-vscode-${{ steps.tag.outputs.version }}.vsix")
+          ARGS=(--no-dependencies --readme-path ./README.md --out "dbterd-vscode-${{ steps.tag.outputs.version }}.vsix")
           if [ "${{ steps.tag.outputs.prerelease }}" = "true" ]; then
             ARGS+=(--pre-release)
           fi
