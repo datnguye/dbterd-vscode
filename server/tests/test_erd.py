@@ -4,8 +4,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 import pytest
-import yaml
-from dbterd.core.registry.decorators import PluginRegistry
+from dbterd.core.registry.plugin_registry import PluginRegistry
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
@@ -19,8 +18,9 @@ from dbterd_server.erd import (
 from dbterd_server.main import app as fastapi_app
 
 # Tests that need to observe or inject parse_artifacts behavior go through the
-# registry — same dispatch path build_erd uses. Pinning directly to a specific
-# algo class would hide real breakage if the registry ever stopped resolving.
+# registry — same dispatch path build_erd uses via DbtErd. Pinning directly to
+# a specific algo class would hide real breakage if the registry ever stopped
+# resolving.
 _default_algo_class = PluginRegistry.get_algo("test_relationship")
 
 FIXTURE_ROOT = Path(__file__).parent / "fixtures" / "jaffle_shop"
@@ -98,25 +98,13 @@ def test_build_erd_reparses_when_manifest_changes(tmp_path: Path) -> None:
     assert first is not second
 
 
-def test_build_erd_handles_bad_project_yaml(tmp_path: Path) -> None:
-    project = _copy_fixture(tmp_path / "project")
-    (project / "dbt_project.yml").write_text(": : not valid yaml :")
-    result = build_erd(str(project))
-    assert result.payload.dbt_project_name == ""
-
-
-def test_build_erd_handles_project_yml_without_name(tmp_path: Path) -> None:
-    project = _copy_fixture(tmp_path / "project")
-    (project / "dbt_project.yml").write_text(yaml.safe_dump({"version": "1.0"}))
-    result = build_erd(str(project))
-    assert result.payload.dbt_project_name == ""
-
-
-def test_build_erd_handles_missing_project_yml(tmp_path: Path) -> None:
+def test_build_erd_uses_manifest_project_name(tmp_path: Path) -> None:
+    # Now sourced from manifest.metadata.project_name via the json target,
+    # not from dbt_project.yml. Stripping dbt_project.yml is a no-op.
     project = _copy_fixture(tmp_path / "project")
     (project / "dbt_project.yml").unlink()
     result = build_erd(str(project))
-    assert result.payload.dbt_project_name == ""
+    assert result.payload.dbt_project_name == "jaffle_shop"
 
 
 def test_build_erd_resolves_raw_sql_path_when_present(tmp_path: Path) -> None:
@@ -151,80 +139,71 @@ def test_build_erd_raw_sql_path_is_none_when_file_missing_on_disk(tmp_path: Path
     assert match.raw_sql_path is None
 
 
-def test_index_manifest_paths_skips_malformed_entries() -> None:
-    # Direct coverage for the filter branches in _index_manifest_paths:
-    # non-dict node, missing original_file_path, non-string path.
-    result = erd_module._index_manifest_paths(
-        {
-            "nodes": {
-                "model.a.b": {"original_file_path": "models/b.sql"},
-                "model.a.c": "not a dict",
-                "model.a.d": {},
-                "model.a.e": {"original_file_path": None},
-            }
-        }
-    )
-    assert result == {"model.a.b": "models/b.sql"}
-
-
-def test_index_manifest_paths_handles_missing_nodes_key() -> None:
-    assert erd_module._index_manifest_paths({}) == {}
-
-
-def test_resolve_raw_sql_path_returns_none_when_manifest_lacks_path() -> None:
-    # Model is in dbterd's Table stream but the manifest index has no entry
-    # for its unique_id (shouldn't happen under normal operation, but the
-    # manifest is user-controlled so guard against it).
-    table = erd_module.Table(
-        name="orphan",
-        database="db",
-        schema="sch",
-        columns=[],
-        raw_sql=None,
-        resource_type="model",
-        node_name="model.a.orphan",
-    )
-    assert erd_module._resolve_raw_sql_path(table, Path("/tmp"), {}) is None
-
-
-def test_resolve_raw_sql_path_returns_none_for_non_model_node() -> None:
-    table = erd_module.Table(
-        name="raw_customers",
-        database="db",
-        schema="sch",
-        columns=[],
-        raw_sql=None,
-        resource_type="seed",
-        node_name="seed.jaffle_shop.raw_customers",
-    )
+def test_resolve_raw_sql_path_returns_none_when_payload_lacks_path() -> None:
     assert (
         erd_module._resolve_raw_sql_path(
-            table, Path("/tmp"), {"seed.jaffle_shop.raw_customers": "seeds/x.csv"}
+            {"resource_type": "model", "original_file_path": None},
+            Path("/tmp"),
         )
         is None
     )
 
 
-def test_map_ref_skips_mismatched_column_lengths() -> None:
-    ref = erd_module.Ref(
-        name="r1",
-        table_map=("a", "b"),
-        column_map=(["x", "y"], ["z"]),  # length mismatch
-        type="n1",
+def test_resolve_raw_sql_path_returns_none_for_non_model_node() -> None:
+    assert (
+        erd_module._resolve_raw_sql_path(
+            {"resource_type": "seed", "original_file_path": "seeds/x.csv"},
+            Path("/tmp"),
+        )
+        is None
     )
+
+
+def test_resolve_raw_sql_path_returns_none_when_path_not_string() -> None:
+    assert (
+        erd_module._resolve_raw_sql_path(
+            {"resource_type": "model", "original_file_path": 123},
+            Path("/tmp"),
+        )
+        is None
+    )
+
+
+def _ref_dict(parent: str, child: str, parent_cols: list[str], child_cols: list[str], **kw) -> dict:
+    return {
+        "name": kw.get("name", "r1"),
+        "type": kw.get("type", "n1"),
+        "table_map": [parent, child],
+        "column_map": [parent_cols, child_cols],
+        "relationship_label": kw.get("relationship_label"),
+    }
+
+
+def test_map_ref_skips_mismatched_column_lengths() -> None:
+    ref = _ref_dict("a", "b", ["x", "y"], ["z"])
     assert erd_module._map_ref(ref, 0) is None
 
 
 def test_map_ref_normalizes_unknown_cardinality() -> None:
-    ref = erd_module.Ref(
-        name="r1",
-        table_map=("a", "b"),
-        column_map=(["x"], ["y"]),
-        type="weird-value",
-    )
+    ref = _ref_dict("a", "b", ["x"], ["y"], type="weird-value")
     edge = erd_module._map_ref(ref, 0)
     assert edge is not None
     assert edge.cardinality == ""
+
+
+def test_map_ref_returns_none_for_empty_parent_columns() -> None:
+    assert erd_module._map_ref(_ref_dict("a", "b", [], ["x"]), 0) is None
+
+
+def test_map_ref_returns_none_for_empty_child_columns() -> None:
+    assert erd_module._map_ref(_ref_dict("a", "b", ["x"], []), 0) is None
+
+
+def test_map_ref_falls_back_to_ref_prefix_when_name_missing() -> None:
+    ref = _ref_dict("a", "b", ["x"], ["y"], name=None)
+    edge = erd_module._map_ref(ref, 3)
+    assert edge is not None
+    assert edge.id == "ref__3"
 
 
 def test_build_erd_evicts_oldest_entry_over_cache_cap(tmp_path: Path) -> None:
@@ -285,19 +264,8 @@ def test_build_erd_marks_child_side_columns_as_foreign_key(tmp_path: Path) -> No
         assert target_col.is_foreign_key is True, f"{edge.to_id}.{edge.to_column} missing FK flag"
 
 
-def _make_ref(
-    parent: str, child: str, parent_cols: list[str], child_cols: list[str]
-) -> erd_module.Ref:
-    return erd_module.Ref(
-        name="r1",
-        table_map=(parent, child),
-        column_map=(parent_cols, child_cols),
-        type="n1",
-    )
-
-
 def test_mark_foreign_key_columns_handles_missing_node() -> None:
-    erd_module._mark_foreign_key_columns([], [_make_ref("ghost", "ghost", ["x"], ["y"])])
+    erd_module._mark_foreign_key_columns([], [_ref_dict("ghost", "ghost", ["x"], ["y"])])
 
 
 def test_mark_foreign_key_columns_skips_unknown_column_name() -> None:
@@ -318,7 +286,7 @@ def test_mark_foreign_key_columns_skips_unknown_column_name() -> None:
         ],
         raw_sql_path=None,
     )
-    erd_module._mark_foreign_key_columns([node], [_make_ref("parent", "n1", ["x"], ["missing"])])
+    erd_module._mark_foreign_key_columns([node], [_ref_dict("parent", "n1", ["x"], ["missing"])])
     assert node.columns[0].is_foreign_key is False
 
 
@@ -344,7 +312,7 @@ def test_mark_foreign_key_columns_marks_composite_fks() -> None:
     erd_module._mark_foreign_key_columns(
         [node],
         [
-            _make_ref(
+            _ref_dict(
                 "dim",
                 "fct",
                 ["customer_id", "segment_code"],
@@ -354,6 +322,21 @@ def test_mark_foreign_key_columns_marks_composite_fks() -> None:
     )
     marked = {c.name for c in node.columns if c.is_foreign_key}
     assert marked == {"customer_id", "segment_code"}
+
+
+def test_mark_foreign_key_columns_skips_malformed_ref() -> None:
+    node = erd_module.ErdNode(
+        id="fct",
+        name="fct",
+        resource_type="model",
+        schema_name=None,
+        database=None,
+        columns=[],
+        raw_sql_path=None,
+    )
+    # Missing table_map / column_map entirely shouldn't explode.
+    erd_module._mark_foreign_key_columns([node], [{}])
+    erd_module._mark_foreign_key_columns([node], [{"table_map": ["a"], "column_map": [[]]}])
 
 
 def test_inject_column_is_noop_when_node_missing() -> None:
@@ -395,26 +378,6 @@ def test_inject_column_does_not_duplicate() -> None:
     erd_module._inject_column(node, "id")
     assert len(node.columns) == 1
     assert node.columns[0].is_primary_key is True  # existing column preserved
-
-
-def test_map_ref_returns_none_for_empty_parent_columns() -> None:
-    ref = erd_module.Ref(
-        name="r1",
-        table_map=("a", "b"),
-        column_map=([], ["x"]),
-        type="n1",
-    )
-    assert erd_module._map_ref(ref, 0) is None
-
-
-def test_map_ref_returns_none_for_empty_child_columns() -> None:
-    ref = erd_module.Ref(
-        name="r1",
-        table_map=("a", "b"),
-        column_map=(["x"], []),
-        type="n1",
-    )
-    assert erd_module._map_ref(ref, 0) is None
 
 
 def test_build_erd_skips_refs_with_empty_column_map_via_monkeypatch(
@@ -461,7 +424,7 @@ def test_build_erd_honors_dbterd_yml_entity_name_format(tmp_path: Path) -> None:
     assert any(node.name == "customers" for node in result.payload.nodes)
 
 
-def test_build_erd_passes_config_through_to_parse_artifacts(
+def test_build_erd_passes_config_through_to_dbterd(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     project = _copy_fixture(tmp_path / "project")
@@ -493,10 +456,19 @@ def test_build_erd_honors_pyproject_toml_config(tmp_path: Path) -> None:
     assert any(node.name == "customers" for node in result.payload.nodes)
 
 
+def test_build_erd_pyproject_without_tool_dbterd_is_ignored(tmp_path: Path) -> None:
+    project = _copy_fixture(tmp_path / "project")
+    # pyproject.toml present but no [tool.dbterd] — treated as "no config".
+    (project / "pyproject.toml").write_text('[tool.other]\nfoo = "bar"\n')
+    result = build_erd(str(project))
+    # Default entity-name-format is "resource.package.model".
+    assert any(node.name.endswith(".customers") for node in result.payload.nodes)
+
+
 def test_build_erd_filters_unknown_config_keys(tmp_path: Path) -> None:
     project = _copy_fixture(tmp_path / "project")
     # "output" / "omit-columns" are dbterd CLI concerns — our builder should
-    # silently drop them rather than pass them into parse_artifacts.
+    # silently drop them rather than pass them into DbtErd.
     (project / ".dbterd.yml").write_text(
         "entity-name-format: model\noutput: dbml\nomit-columns: true\n"
     )
@@ -507,7 +479,7 @@ def test_build_erd_filters_unknown_config_keys(tmp_path: Path) -> None:
 def test_build_erd_raises_on_unknown_algo(tmp_path: Path) -> None:
     project = _copy_fixture(tmp_path / "project")
     (project / ".dbterd.yml").write_text("algo: not_a_real_algo\n")
-    with pytest.raises(ErdBuildError, match="Unknown dbterd algo: not_a_real_algo"):
+    with pytest.raises(ErdBuildError, match="dbterd rejected configuration"):
         build_erd(str(project))
 
 
@@ -521,11 +493,26 @@ def test_build_erd_honors_model_contract_algo(tmp_path: Path) -> None:
     assert len(result.payload.nodes) > 0
 
 
-def test_build_erd_raises_on_malformed_config(tmp_path: Path) -> None:
+def test_build_erd_raises_on_malformed_yaml_config(tmp_path: Path) -> None:
     project = _copy_fixture(tmp_path / "project")
     (project / ".dbterd.yml").write_text(": : not valid yaml :")
     with pytest.raises(ErdBuildError, match="Invalid dbterd config"):
         build_erd(str(project))
+
+
+def test_build_erd_raises_on_malformed_pyproject_config(tmp_path: Path) -> None:
+    project = _copy_fixture(tmp_path / "project")
+    (project / "pyproject.toml").write_text("this is not = valid toml [")
+    with pytest.raises(ErdBuildError, match="Invalid dbterd config"):
+        build_erd(str(project))
+
+
+def test_build_erd_yaml_config_non_mapping_is_ignored(tmp_path: Path) -> None:
+    project = _copy_fixture(tmp_path / "project")
+    # A YAML list isn't a config map — treat as empty and fall through to defaults.
+    (project / ".dbterd.yml").write_text("- item1\n- item2\n")
+    result = build_erd(str(project))
+    assert any(node.name.endswith(".customers") for node in result.payload.nodes)
 
 
 def test_build_erd_invalidates_cache_when_config_changes(tmp_path: Path) -> None:
@@ -542,6 +529,29 @@ def test_build_erd_invalidates_cache_when_config_changes(tmp_path: Path) -> None
     assert first is not second
     assert any(n.name == "customers" for n in first.payload.nodes)
     assert any(n.name.endswith(".customers") for n in second.payload.nodes)
+
+
+def test_parse_generated_at_accepts_iso_zulu() -> None:
+    dt = erd_module._parse_generated_at("2026-04-04T05:08:37.907328Z")
+    assert dt.year == 2026
+    assert dt.tzinfo is not None
+
+
+def test_parse_generated_at_falls_back_on_garbage() -> None:
+    before = erd_module.datetime.now(erd_module.timezone.utc)
+    dt = erd_module._parse_generated_at("not-a-date")
+    after = erd_module.datetime.now(erd_module.timezone.utc)
+    assert before <= dt <= after
+
+
+def test_parse_generated_at_falls_back_on_empty() -> None:
+    dt = erd_module._parse_generated_at("")
+    assert dt.tzinfo is not None
+
+
+def test_parse_generated_at_falls_back_on_none() -> None:
+    dt = erd_module._parse_generated_at(None)
+    assert dt.tzinfo is not None
 
 
 def _make_client_with_project(project_path: str) -> TestClient:
