@@ -1,10 +1,11 @@
 import { spawn } from "child_process";
-import * as vscode from "vscode";
+
+import type { Logger } from "../logging";
 
 export function runStreaming(
   command: string,
   args: string[],
-  output: vscode.OutputChannel,
+  output: Logger,
 ): Promise<void> {
   return new Promise((resolve, reject) => {
     const proc = spawn(command, args, { stdio: ["ignore", "pipe", "pipe"] });

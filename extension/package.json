@@ -38,6 +38,10 @@
       {
         "command": "dbterd.reloadServer",
         "title": "dbt ERD: Reload Server"
+      },
+      {
+        "command": "dbterd.showLogs",
+        "title": "dbt ERD: Show Logs"
       }
     ],
     "configuration": {

@@ -1,6 +1,7 @@
 import { ChildProcess, spawn } from "child_process";
 import * as vscode from "vscode";
 
+import { createLogger, type Logger } from "../logging";
 import { provisionServer } from "../provision";
 import { waitForHandshake } from "./handshake";
 import { waitForHealth } from "./health";
@@ -19,11 +20,16 @@ export class DbterdServer implements vscode.Disposable {
   private proc: ChildProcess | undefined;
   private url: string | undefined;
   private starting: Promise<string> | undefined;
-  private readonly output: vscode.OutputChannel;
+  private readonly output: Logger;
   private callbacks: DbterdServerCallbacks = {};
+  private serverLogPath: string | undefined;
 
   constructor(private readonly context: vscode.ExtensionContext) {
-    this.output = vscode.window.createOutputChannel("dbterd");
+    this.output = createLogger("dbterd");
+  }
+
+  get logger(): Logger {
+    return this.output;
   }
 
   setCallbacks(callbacks: DbterdServerCallbacks): void {
@@ -32,6 +38,10 @@ export class DbterdServer implements vscode.Disposable {
 
   get currentUrl(): string | undefined {
     return this.url;
+  }
+
+  get currentServerLogPath(): string | undefined {
+    return this.serverLogPath;
   }
 
   async ensureRunning(): Promise<string> {
@@ -95,6 +105,10 @@ export class DbterdServer implements vscode.Disposable {
         onProcExit: () => {
           this.url = undefined;
           if (this.proc === proc) this.proc = undefined;
+        },
+        onServerLogPath: (logPath) => {
+          this.serverLogPath = logPath;
+          this.output.appendLine(`[server log] ${logPath}`);
         },
       });
     } catch (err) {

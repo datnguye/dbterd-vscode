@@ -143,8 +143,49 @@ suite("dbterd extension end-to-end", () => {
     const erd = await httpGet(`${serverUrl}/erd`);
     assert.strictEqual(erd.status, 200, `GET /erd returned ${erd.status}: ${erd.body}`);
     const payload = JSON.parse(erd.body) as Record<string, unknown>;
-    assert.ok(Array.isArray(payload.nodes), "payload.nodes must be an array");
-    assert.ok(Array.isArray(payload.edges), "payload.edges must be an array");
+    const nodes = payload.nodes as Array<Record<string, unknown>>;
+    const edges = payload.edges as Array<Record<string, unknown>>;
+    assert.ok(Array.isArray(nodes), "payload.nodes must be an array");
+    assert.ok(Array.isArray(edges), "payload.edges must be an array");
+
+    // Generation succeeded only if the ERD actually has content. The jaffle-shop
+    // fixture is checked in with a known manifest/catalog — assert against that
+    // rather than just shape, otherwise an empty payload would silently pass.
+    assert.ok(
+      nodes.length > 0,
+      `expected /erd to return at least one node from the jaffle-shop fixture, got ${nodes.length}`,
+    );
+    assert.ok(
+      edges.length > 0,
+      `expected /erd to return at least one edge from the jaffle-shop fixture, got ${edges.length}`,
+    );
+
+    // Spot-check node shape: every node must have a stable id, a name, and at
+    // least one column — these are the fields the React layout relies on.
+    for (const node of nodes) {
+      assert.strictEqual(typeof node.id, "string", `node.id must be string: ${JSON.stringify(node)}`);
+      assert.strictEqual(typeof node.name, "string", `node.name must be string: ${JSON.stringify(node)}`);
+      assert.ok(Array.isArray(node.columns), `node.columns must be array: ${JSON.stringify(node)}`);
+    }
+    const nodeNames = nodes.map((n) => n.name);
+    assert.ok(
+      nodeNames.some((name) => typeof name === "string" && name.includes("orders")),
+      `expected an "orders" model in jaffle-shop fixture, got ${JSON.stringify(nodeNames)}`,
+    );
+
+    // Spot-check edge shape: FK relationships must reference real node ids.
+    const nodeIds = new Set(nodes.map((n) => n.id as string));
+    for (const edge of edges) {
+      assert.ok(
+        nodeIds.has(edge.from_id as string),
+        `edge.from_id ${String(edge.from_id)} not found in nodes`,
+      );
+      assert.ok(
+        nodeIds.has(edge.to_id as string),
+        `edge.to_id ${String(edge.to_id)} not found in nodes`,
+      );
+    }
+
     const metadata = payload.metadata as Record<string, unknown>;
     assert.ok(metadata, "payload.metadata must be present");
     assert.strictEqual(

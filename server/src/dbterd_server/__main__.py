@@ -6,6 +6,7 @@ import uvicorn
 from dbterd_server.api.app import app
 from dbterd_server.api.service import ErdService
 from dbterd_server.erd.cache import ErdCache
+from dbterd_server.logging_setup import build_log_path, configure_file_logging
 
 
 def _bind_socket(requested_port: int) -> socket.socket:
@@ -53,6 +54,13 @@ def _build_parser() -> argparse.ArgumentParser:
 
 def main() -> None:
     args = _build_parser().parse_args()
+
+    log_path = build_log_path()
+    configure_file_logging(args.log_level, log_path)
+    # Announced before DBTERD_READY so the extension can capture the path even
+    # if the server crashes during startup.
+    print(f"DBTERD_LOG {log_path}", flush=True)
+
     sock = _bind_socket(args.port)
     bound_port = sock.getsockname()[1]
 

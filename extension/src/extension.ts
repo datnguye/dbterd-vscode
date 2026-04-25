@@ -1,8 +1,35 @@
 import * as vscode from "vscode";
 
+import { resolveLogDir } from "./logging";
 import { EventBus, type PanelEvents } from "./messaging/bus";
 import { DbterdServer } from "./server";
 import { ErdPanel } from "./webview";
+
+const SHOW_LOGS_ACTION = "Show Logs";
+
+async function openLogs(server: DbterdServer | undefined): Promise<void> {
+  // Prefer the server's current log file (most relevant when something just
+  // failed); fall back to opening the ~/.dbterd/ directory so the user can
+  // pick from rotated backups or a previous session's transcript.
+  const serverLog = server?.currentServerLogPath;
+  if (serverLog) {
+    try {
+      const doc = await vscode.workspace.openTextDocument(vscode.Uri.file(serverLog));
+      await vscode.window.showTextDocument(doc, { preview: false });
+      return;
+    } catch {
+      // Fall through to revealing the directory.
+    }
+  }
+  const dir = vscode.Uri.file(resolveLogDir());
+  await vscode.commands.executeCommand("revealFileInOS", dir);
+}
+
+function showErrorWithLogs(server: DbterdServer | undefined, message: string): void {
+  void vscode.window.showErrorMessage(message, SHOW_LOGS_ACTION).then((choice) => {
+    if (choice === SHOW_LOGS_ACTION) void openLogs(server);
+  });
+}
 
 // Surface exposed to integration tests (via vscode.extensions.getExtension(...).exports).
 // Production callers should not depend on this shape — it exists so e2e tests can verify
@@ -27,10 +54,12 @@ export async function activate(context: vscode.ExtensionContext): Promise<Dbterd
   server.setCallbacks({
     onUnexpectedExit(detail) {
       void vscode.window
-        .showWarningMessage(detail, "Reload Server")
+        .showWarningMessage(detail, "Reload Server", SHOW_LOGS_ACTION)
         .then((choice) => {
           if (choice === "Reload Server") {
             void vscode.commands.executeCommand("dbterd.reloadServer");
+          } else if (choice === SHOW_LOGS_ACTION) {
+            void openLogs(server);
           }
         });
     },
@@ -60,7 +89,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<Dbterd
       await reloadAndRefresh();
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
-      void vscode.window.showErrorMessage(`dbterd: reload failed: ${message}`);
+      showErrorWithLogs(server, `dbterd: reload failed: ${message}`);
     }
   });
 
@@ -71,7 +100,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<Dbterd
         ErdPanel.createOrShow(context, url, bus);
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
-        void vscode.window.showErrorMessage(`dbterd: ${message}`);
+        showErrorWithLogs(server, `dbterd: ${message}`);
       }
     }),
     vscode.commands.registerCommand("dbterd.refresh", () => {
@@ -82,9 +111,10 @@ export async function activate(context: vscode.ExtensionContext): Promise<Dbterd
         await reloadAndRefresh();
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
-        void vscode.window.showErrorMessage(`dbterd: reload failed: ${message}`);
+        showErrorWithLogs(server, `dbterd: reload failed: ${message}`);
       }
     }),
+    vscode.commands.registerCommand("dbterd.showLogs", () => openLogs(server)),
   );
 
   return {

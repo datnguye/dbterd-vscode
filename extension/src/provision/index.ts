@@ -6,6 +6,7 @@ import * as fs from "fs";
 import * as path from "path";
 import * as vscode from "vscode";
 
+import type { Logger } from "../logging";
 import {
   discoverBasePython,
   hasDbterdServer,
@@ -24,7 +25,7 @@ export interface ProvisionResult {
 
 export async function provisionServer(
   context: vscode.ExtensionContext,
-  output: vscode.OutputChannel,
+  output: Logger,
   dbtProjectPath: string,
   pythonOverride: string,
 ): Promise<ProvisionResult> {

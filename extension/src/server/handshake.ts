@@ -4,19 +4,22 @@
 
 import { ChildProcess } from "child_process";
 import { createInterface } from "readline";
-import * as vscode from "vscode";
+
+import type { Logger } from "../logging";
 
 export const READY_RE = /^DBTERD_READY (https?:\/\/\S+)$/;
+export const LOG_PATH_RE = /^DBTERD_LOG (.+)$/;
 
 export interface HandshakeOptions {
   proc: ChildProcess;
-  output: vscode.OutputChannel;
+  output: Logger;
   timeoutMs: number;
   onProcExit: () => void;
+  onServerLogPath?: (logPath: string) => void;
 }
 
 export function waitForHandshake(opts: HandshakeOptions): Promise<string> {
-  const { proc, output, timeoutMs, onProcExit } = opts;
+  const { proc, output, timeoutMs, onProcExit, onServerLogPath } = opts;
   return new Promise<string>((resolve, reject) => {
     let settled = false;
     const settle = (fn: () => void) => {
@@ -33,6 +36,11 @@ export function waitForHandshake(opts: HandshakeOptions): Promise<string> {
     const stdout = createInterface({ input: proc.stdout! });
     stdout.on("line", (line) => {
       output.appendLine(`[stdout] ${line}`);
+      const logMatch = LOG_PATH_RE.exec(line);
+      if (logMatch) {
+        onServerLogPath?.(logMatch[1]);
+        return;
+      }
       const match = READY_RE.exec(line);
       if (match) settle(() => resolve(match[1]));
     });
