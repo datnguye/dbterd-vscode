@@ -13,9 +13,9 @@ import yaml
 
 from dbterd_server.erd.errors import ConfigInvalidError
 
-if sys.version_info >= (3, 11):
+if sys.version_info >= (3, 11):  # pragma: no cover - depends on interpreter version
     import tomllib
-else:  # pragma: no cover - Python < 3.11 fallback
+else:  # pragma: no cover - depends on interpreter version
     import tomli as tomllib
 
 # Keys we honor. Anything else dbterd knows about is silently ignored.
