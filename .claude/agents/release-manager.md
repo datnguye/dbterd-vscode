@@ -35,11 +35,27 @@ Set up the Release correctly. The automation does the rest.
    - Read the latest tag: `git describe --tags --abbrev=0` (fine if it errors on the first release).
    - Propose `patch` / `minor` / `major` / a pre-release label based on recent commits.
    - **Ask the user to confirm the exact version string before proceeding.**
-2. **Ask the user once more** before creating the Release (this triggers publishing).
-3. Create the Release — this also creates the tag at `HEAD` of `main`:
-   - Stable: `gh release create vX.Y.Z --generate-notes --title "vX.Y.Z"`
-   - Pre-release: `gh release create vX.Y.Z --generate-notes --prerelease --title "vX.Y.Z"`
-4. Report the Release URL (`gh release view vX.Y.Z --web`) and tell the user to watch the `release` workflow in Actions.
+2. Build human-readable release notes from the diff vs the previous tag:
+   - `git fetch --tags` to ensure tags are local.
+   - `git log <prev-tag>..HEAD --pretty=format:"%h|%s" --no-merges` for the commit list.
+   - `git diff <prev-tag>..HEAD --stat` to gauge scope (servers/webview/extension/docs).
+   - Group commits by Conventional-Commit prefix into these sections (omit empty ones):
+     - **Highlights** — 2–4 bullets on the user-visible wins (what a maintainer would mention in a Slack post). Write in plain language, not as commit subjects.
+     - **Features** (`feat:`)
+     - **Fixes** (`fix:`)
+     - **Refactors** (`refactor:`)
+     - **Tests** (`test:` or test-only commits)
+     - **Docs** (`docs:`)
+   - Each entry should explain user-visible impact, not paste the commit subject. Append commit short SHA in parentheses for traceability.
+   - End with `**Full Changelog**: https://github.com/datnguye/dbterd-vscode/compare/<prev-tag>...vX.Y.Z`.
+   - Write the notes to a temp file (e.g. `/tmp/vX.Y.Z-notes.md`).
+3. **Ask the user once more** before creating the Release (this triggers publishing). Show the proposed notes for review.
+4. Create the Release — this also creates the tag at `HEAD` of `main`. Use `--notes-file`, **not** `--generate-notes`:
+   - Stable: `gh release create vX.Y.Z --notes-file /tmp/vX.Y.Z-notes.md --title "vX.Y.Z"`
+   - Pre-release: `gh release create vX.Y.Z --notes-file /tmp/vX.Y.Z-notes.md --prerelease --title "vX.Y.Z"`
+5. Report the Release URL (`gh release view vX.Y.Z --web`) and tell the user to watch the `release` workflow in Actions.
+
+If a Release was already created with auto-generated notes, edit it with `gh release edit vX.Y.Z --notes-file <file>` rather than deleting and recreating.
 
 ## Never
 

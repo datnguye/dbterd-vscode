@@ -1,2 +1,3 @@
 - [v0.0.1 stable release](project_v0_0_1_release.md) — First stable release cut 2026-04-18; publishes to VS Code Marketplace
 - [v0.0.2 stable release](project_v0_0_2_release.md) — Second stable release cut 2026-04-18; clean single-attempt publish
+- [v0.0.3 stable release](project_v0_0_3_release.md) — Third stable release cut 2026-04-25; clean single-attempt publish
