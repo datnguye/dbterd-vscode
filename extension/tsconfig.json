@@ -14,9 +14,8 @@
     "skipLibCheck": true,
     "types": ["node", "vscode"],
     "forceConsistentCasingInFileNames": true,
-    "baseUrl": ".",
     "paths": {
-      "@/*": ["src/*"]
+      "@/*": ["./src/*"]
     }
   },
   "include": ["src/**/*", "tests/**/*"],
