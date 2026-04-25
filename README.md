@@ -107,6 +107,7 @@ consider sponsoring a coffee — or, in 2026 currency, roughly 1M Claude tokens.
 Either way, the late-night bug hunts stay fueled and the agents stay fed.
 
 <a href="https://buymeacoffee.com/datnguye">
-  <img src="https://img.shields.io/badge/Buy_me_tokens-fuel_an_agent-FF694A?style=flat-square&labelColor=2b1810&logo=buymeacoffee&logoColor=white" alt="Buy me tokens" height="32" />
+  <img src="https://img.shields.io/badge/Buy_me_tokens-fuel_an_agent-FF694A?style=flat-square&labelColor=2b1810&logo=buymeacoffee&logoColor=white" alt="Buy me tokens" height="50" />
 </a>
 
+<!-- GitAds-Verify: UVZO3GJYWWTVFBTLLX7IJOBV3HYEAXYT -->

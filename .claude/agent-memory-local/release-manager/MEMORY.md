@@ -1,4 +1,4 @@
 - [v0.0.1 stable release](project_v0_0_1_release.md) — First stable release cut 2026-04-18; publishes to VS Code Marketplace
 - [v0.0.2 stable release](project_v0_0_2_release.md) — Second stable release cut 2026-04-18; clean single-attempt publish
 - [v0.0.3 stable release](project_v0_0_3_release.md) — Third stable release cut 2026-04-25; clean single-attempt publish
-- [v0.0.4 stable release](project_v0_0_4_release.md) — Fourth stable release cut 2026-04-25; progress notifications, filter highlighting, details pane
+- [v0.0.4 release (republished)](project_v0_0_4_release.md) — First attempt 2026-04-25 broke because extension/package.json was hand-bumped before tagging; recovered by delete+recreate at fresh main HEAD. Never bump that file manually.
