@@ -13,6 +13,40 @@
   border-style: dashed;
 }
 
+/* Filter highlighting — keep all nodes/edges visible (preserve ERD context),
+   but draw the eye to matches and recede the rest. */
+.erd-table[data-filter="match"] {
+  border-color: var(--vscode-charts-yellow, #e5c07b);
+  box-shadow: 0 0 0 2px var(--vscode-charts-yellow, #e5c07b),
+    0 1px 4px rgba(0, 0, 0, 0.35);
+}
+
+.erd-table[data-filter="dim"] {
+  opacity: 0.32;
+  filter: saturate(0.6);
+  transition: opacity 0.12s ease, filter 0.12s ease;
+}
+
+.erd-table[data-filter="dim"]:hover {
+  opacity: 0.85;
+  filter: none;
+}
+
+/* Selected node (details pane open) — blue ring distinct from the yellow
+   filter-match ring so both states can co-exist on a single node. */
+.erd-table[data-active="true"] {
+  border-color: var(--vscode-focusBorder, #007acc);
+  box-shadow: 0 0 0 2px var(--vscode-focusBorder, #007acc),
+    0 2px 8px rgba(0, 0, 0, 0.4);
+}
+
+.erd-table[data-active="true"][data-filter="match"] {
+  /* When a node is both matched and active, prefer the active blue ring
+     and keep the yellow as an inner shadow so both signals stay visible. */
+  box-shadow: 0 0 0 2px var(--vscode-focusBorder, #007acc),
+    inset 0 0 0 1px var(--vscode-charts-yellow, #e5c07b);
+}
+
 .erd-table-header {
   display: flex;
   align-items: center;

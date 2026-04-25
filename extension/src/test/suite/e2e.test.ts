@@ -1,4 +1,5 @@
 import { spawnSync } from "child_process";
+import * as fs from "fs";
 import * as http from "http";
 import * as path from "path";
 import * as assert from "assert";
@@ -202,5 +203,86 @@ suite("dbterd extension end-to-end", () => {
 
   test("dbterd.refresh does not throw when a panel is open", async () => {
     await vscode.commands.executeCommand("dbterd.refresh");
+  });
+
+  // The filter / details / minimap UI runs entirely inside the React webview
+  // — the extension host can't drive its DOM. What the host *can* assert is
+  // that the production webview bundle (the one packaged into the .vsix)
+  // actually contains those features. A regression that drops EntityFilter,
+  // DetailsPane, or MiniMap from the build will fail CI here instead of
+  // silently shipping a broken extension. The full interaction behaviour is
+  // covered by webview/tests/unit/.
+  //
+  // We prefer the source-of-truth bundle at webview/dist/index.js. extension/
+  // media/ is only populated during `task package`; the webview dist is
+  // guaranteed fresh because the e2e job runs after the build step.
+  function findWebviewBundle(): string | undefined {
+    const repoRoot = path.resolve(__dirname, "../../../..");
+    const candidates = [
+      path.join(repoRoot, "webview", "dist", "index.js"),
+      path.join(repoRoot, "extension", "media", "index.js"),
+    ];
+    return candidates.find((p) => fs.existsSync(p));
+  }
+
+  function findWebviewStyles(): string | undefined {
+    const repoRoot = path.resolve(__dirname, "../../../..");
+    const candidates = [
+      path.join(repoRoot, "webview", "dist", "index.css"),
+      path.join(repoRoot, "extension", "media", "index.css"),
+    ];
+    return candidates.find((p) => fs.existsSync(p));
+  }
+
+  test("the bundled webview ships the entity-filter UI", function () {
+    const bundlePath = findWebviewBundle();
+    if (!bundlePath) {
+      console.warn("[e2e] skipping: no webview bundle found. Run `task build` first.");
+      this.skip();
+      return;
+    }
+    const bundle = fs.readFileSync(bundlePath, "utf-8");
+
+    // Strings that must survive minification because they're user-visible
+    // copy or stable ARIA labels. If any of these disappears the feature is
+    // either removed or invisible to assistive tech.
+    const required = [
+      "Filter entities", // placeholder + aria-label root
+      "Clear filter", // clear-button title
+      "Filter entities by name", // input aria-label
+    ];
+    for (const needle of required) {
+      assert.ok(
+        bundle.includes(needle),
+        `bundled webview at ${bundlePath} is missing filter UI string ${JSON.stringify(needle)} — ` +
+          "did EntityFilter get dropped from the build?",
+      );
+    }
+
+    const stylePath = findWebviewStyles();
+    if (stylePath) {
+      const styles = fs.readFileSync(stylePath, "utf-8");
+      assert.ok(
+        styles.includes(".erd-filter"),
+        "bundled stylesheet is missing .erd-filter rules",
+      );
+    }
+  });
+
+  test("the bundled webview ships the details pane and minimap", function () {
+    const bundlePath = findWebviewBundle();
+    if (!bundlePath) {
+      this.skip();
+      return;
+    }
+    const bundle = fs.readFileSync(bundlePath, "utf-8");
+    // DetailsPane: surfaced via the close-button aria-label and the open-file
+    // button label. MiniMap: aria-label we passed to the xyflow MiniMap.
+    for (const needle of ["Close details", "Open model file", "Mini-map"]) {
+      assert.ok(
+        bundle.includes(needle),
+        `bundled webview at ${bundlePath} is missing string ${JSON.stringify(needle)}`,
+      );
+    }
   });
 });

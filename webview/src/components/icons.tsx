@@ -84,3 +84,32 @@ export function DatabaseIcon({ size = 14, className }: IconProps): ReactElement 
     </svg>
   );
 }
+
+export function SearchIcon({ size = 14, className }: IconProps): ReactElement {
+  return (
+    <svg {...base(size)} className={className} aria-hidden="true">
+      <circle cx="11" cy="11" r="8" />
+      <path d="m21 21-4.3-4.3" />
+    </svg>
+  );
+}
+
+export function CloseIcon({ size = 14, className }: IconProps): ReactElement {
+  return (
+    <svg {...base(size)} className={className} aria-hidden="true">
+      <path d="M18 6 6 18" />
+      <path d="m6 6 12 12" />
+    </svg>
+  );
+}
+
+export function FileCodeIcon({ size = 14, className }: IconProps): ReactElement {
+  return (
+    <svg {...base(size)} className={className} aria-hidden="true">
+      <path d="M14.5 22H6a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h8l6 6v3" />
+      <path d="M14 2v4a2 2 0 0 0 2 2h4" />
+      <path d="m9 18-3-3 3-3" />
+      <path d="m15 12 3 3-3 3" />
+    </svg>
+  );
+}

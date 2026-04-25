@@ -1,0 +1,230 @@
+.erd-details {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 360px;
+  max-width: 90vw;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  background: var(--vscode-sideBar-background, #252526);
+  color: var(--vscode-sideBar-foreground, #cccccc);
+  border-left: 1px solid var(--vscode-widget-border, #3c3c3c);
+  box-shadow: -4px 0 12px rgba(0, 0, 0, 0.35);
+  font-family: var(--vscode-font-family, sans-serif);
+  font-size: 12px;
+  animation: erd-slide-in 0.14s ease-out;
+}
+
+@keyframes erd-slide-in {
+  from {
+    transform: translateX(16px);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+.erd-details-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 14px;
+  background: var(--vscode-sideBarSectionHeader-background, #2c2c2c);
+  border-bottom: 1px solid var(--vscode-widget-border, #3c3c3c);
+}
+
+.erd-details-icon {
+  display: inline-flex;
+  align-items: center;
+  color: #FF694A;
+}
+
+.erd-details-title {
+  flex: 1;
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+  font-family: var(--vscode-editor-font-family, monospace);
+  color: var(--vscode-sideBar-foreground, #cccccc);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.erd-details-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  background: transparent;
+  color: inherit;
+  border: 1px solid transparent;
+  border-radius: 3px;
+  cursor: pointer;
+}
+
+.erd-details-close:hover {
+  background: var(--vscode-toolbar-hoverBackground, #2a2d2e);
+  border-color: var(--vscode-widget-border, #3c3c3c);
+}
+
+.erd-details-close:focus-visible {
+  outline: 1px solid var(--vscode-focusBorder, #007acc);
+  outline-offset: 1px;
+}
+
+.erd-details-meta {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px 14px;
+  margin: 0;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--vscode-widget-border, #3c3c3c);
+}
+
+.erd-details-meta > div {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.erd-details-meta dt {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--vscode-descriptionForeground, #a6a6a6);
+}
+
+.erd-details-meta dd {
+  margin: 2px 0 0;
+  font-family: var(--vscode-editor-font-family, monospace);
+  color: var(--vscode-foreground, #d4d4d4);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.erd-details-open-file {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 12px 14px 0;
+  padding: 8px 10px;
+  background: var(--vscode-button-secondaryBackground, #3a3d41);
+  color: var(--vscode-button-secondaryForeground, #cccccc);
+  border: 1px solid transparent;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 12px;
+  text-align: left;
+}
+
+.erd-details-open-file:hover {
+  background: var(--vscode-button-secondaryHoverBackground, #45494e);
+}
+
+.erd-details-open-file:focus-visible {
+  outline: 1px solid var(--vscode-focusBorder, #007acc);
+  outline-offset: 1px;
+}
+
+.erd-details-open-file-path {
+  flex: 1;
+  font-family: var(--vscode-editor-font-family, monospace);
+  font-size: 10px;
+  color: var(--vscode-descriptionForeground, #a6a6a6);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-align: right;
+}
+
+.erd-details-section {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  padding: 12px 14px 14px;
+}
+
+.erd-details-section h3 {
+  margin: 4px 0 8px;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--vscode-descriptionForeground, #a6a6a6);
+  font-weight: 600;
+}
+
+.erd-details-empty {
+  margin: 4px 0;
+  color: var(--vscode-descriptionForeground, #a6a6a6);
+  font-style: italic;
+}
+
+.erd-details-columns {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+}
+
+.erd-details-column {
+  padding: 6px 0;
+  border-bottom: 1px solid var(--vscode-widget-border, #3c3c3c);
+}
+
+.erd-details-column:last-child {
+  border-bottom: none;
+}
+
+.erd-details-column-row {
+  display: grid;
+  grid-template-columns: 28px 1fr auto;
+  align-items: center;
+  gap: 8px;
+}
+
+.erd-details-column-badge {
+  font-size: 10px;
+  font-weight: 700;
+  text-align: center;
+}
+
+.erd-details-column-badge.badge-pk {
+  color: var(--vscode-charts-yellow, #e5c07b);
+}
+
+.erd-details-column-badge.badge-fk {
+  color: var(--vscode-charts-blue, #61afef);
+}
+
+.erd-details-column-badge.badge-none {
+  color: transparent;
+}
+
+.erd-details-column-name {
+  font-family: var(--vscode-editor-font-family, monospace);
+  color: var(--vscode-foreground, #d4d4d4);
+  word-break: break-all;
+}
+
+.erd-details-column-type {
+  font-family: var(--vscode-editor-font-family, monospace);
+  color: var(--vscode-descriptionForeground, #808080);
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.erd-details-column-desc {
+  margin: 4px 0 0 36px;
+  color: var(--vscode-descriptionForeground, #a6a6a6);
+  line-height: 1.4;
+}

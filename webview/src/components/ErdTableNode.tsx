@@ -8,7 +8,6 @@ import {
 import { Handle, Position, type NodeProps } from "@xyflow/react";
 import type { Column } from "../types/erd";
 import type { ErdFlowNode } from "../types/flow";
-import { getVsCodeApi } from "../vscode";
 import { DatabaseIcon, TableIcon } from "./icons";
 import { COLLAPSE_THRESHOLD, COLLAPSED_VISIBLE } from "./tableConstants";
 import "./ErdTableNode.css";
@@ -34,14 +33,6 @@ function ColumnRow({ col }: { col: Column }): ReactElement {
 
 export const ErdTableNode = memo(function ErdTableNode({ data }: NodeProps<ErdFlowNode>) {
   const path = data.raw_sql_path;
-  const onHeaderClick = useCallback(
-    (event: MouseEvent<HTMLElement>): void => {
-      event.stopPropagation();
-      if (!path) return;
-      getVsCodeApi()?.postMessage({ type: "openFile", path });
-    },
-    [path],
-  );
 
   const canCollapse = data.columns.length > COLLAPSE_THRESHOLD;
   const [expanded, setExpanded] = useState(false);
@@ -54,15 +45,25 @@ export const ErdTableNode = memo(function ErdTableNode({ data }: NodeProps<ErdFl
     canCollapse && !expanded ? data.columns.slice(0, COLLAPSED_VISIBLE) : data.columns;
   const hiddenCount = data.columns.length - visibleColumns.length;
 
+  // Filter highlight: App stamps `__filterState` on data — "match" lights the
+  // node up, "dim" fades it. Absent means "no filter active" (default look).
+  const filterState = data.__filterState as "match" | "dim" | undefined;
+  const isActive = data.__active === true;
+
   return (
-    <div className="erd-table" data-resource={data.resource_type}>
+    <div
+      className="erd-table"
+      data-resource={data.resource_type}
+      data-filter={filterState ?? "off"}
+      data-active={isActive ? "true" : "false"}
+    >
       {/* Default table-level handles — edges fall back to these when the FK
           column isn't in the catalog-sourced columns list. Without these, any
           edge whose sourceHandle/targetHandle references a missing column is
           silently dropped by React Flow. */}
       <Handle type="target" position={Position.Left} id="__table_in" />
       <Handle type="source" position={Position.Right} id="__table_out" />
-      <header className="erd-table-header" onClick={onHeaderClick} title={path ?? ""}>
+      <header className="erd-table-header" title={path ?? ""}>
         <span className="erd-table-icon">
           {data.resource_type === "source" ? <DatabaseIcon size={14} /> : <TableIcon size={14} />}
         </span>

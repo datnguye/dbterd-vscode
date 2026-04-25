@@ -1,4 +1,4 @@
-import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 // xyflow uses ResizeObserver and other browser APIs jsdom doesn't ship.
@@ -6,14 +6,55 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 // children — App's job is orchestration, not the canvas itself.
 // Stable references so React doesn't tag every render as a state change and
 // retrigger effects forever. The actual xyflow hooks return stable setters.
-const stableNodes: unknown[] = [];
 const stableEdges: unknown[] = [];
 const noop = (): void => undefined;
+
+interface ReactFlowMockProps {
+  children?: React.ReactNode;
+  nodes?: Array<{ id: string; data: Record<string, unknown> }>;
+  onNodeClick?: (event: unknown, node: { id: string; data: Record<string, unknown> }) => void;
+  onNodeDoubleClick?: (event: unknown, node: { id: string; data: Record<string, unknown> }) => void;
+  onPaneClick?: () => void;
+}
+
+// Persist the latest sample nodes so tests can drive interactions without
+// monkey-patching xyflow internals. The mock surfaces them as data-testid
+// buttons so RTL can click them like any other DOM node.
+let stableNodes: Array<{ id: string; data: Record<string, unknown> }> = [];
+const setSampleNodes = (next: typeof stableNodes): void => {
+  stableNodes = next;
+};
+
 vi.mock("@xyflow/react", () => ({
   Background: () => null,
   Controls: () => null,
-  ReactFlow: ({ children }: { children?: React.ReactNode }) => (
-    <div data-testid="react-flow">{children}</div>
+  MiniMap: () => <div data-testid="minimap" />,
+  ReactFlow: ({
+    children,
+    nodes,
+    onNodeClick,
+    onNodeDoubleClick,
+    onPaneClick,
+  }: ReactFlowMockProps) => (
+    <div data-testid="react-flow">
+      <button type="button" data-testid="pane" onClick={() => onPaneClick?.()}>pane</button>
+      {(nodes ?? []).map((n) => (
+        <div
+          key={n.id}
+          data-testid={`node-${n.id}`}
+          data-filter={String(n.data.__filterState ?? "off")}
+          data-active={String(n.data.__active ?? false)}
+          onClick={(e) => onNodeClick?.(e, n)}
+          onDoubleClick={(e) => onNodeDoubleClick?.(e, n)}
+        >
+          <div className="erd-table-header" data-testid={`node-header-${n.id}`}>
+            {String(n.data.name)}
+          </div>
+          <div className="erd-table-body" data-testid={`node-body-${n.id}`}>body</div>
+        </div>
+      ))}
+      {children}
+    </div>
   ),
   useNodesState: () => [stableNodes, noop, noop],
   useEdgesState: () => [stableEdges, noop, noop],
@@ -21,9 +62,6 @@ vi.mock("@xyflow/react", () => ({
 
 vi.mock("@/components/edgeTypes", () => ({ edgeTypes: {} }));
 vi.mock("@/components/nodeTypes", () => ({ nodeTypes: {} }));
-vi.mock("@/components/Toolbar", () => ({
-  Toolbar: () => <div data-testid="toolbar" />,
-}));
 
 const fetchErdMock = vi.fn();
 vi.mock("@/api", async () => {
@@ -45,6 +83,7 @@ const okPayload = {
 beforeEach(() => {
   fetchErdMock.mockReset();
   postMessageMock.mockReset();
+  setSampleNodes([]);
 });
 
 afterEach(() => {
@@ -123,5 +162,158 @@ describe("App", () => {
     render(<App serverUrl="http://localhost:1" />);
     expect(screen.getByText(/Loading ERD/)).toBeTruthy();
     resolve(okPayload);
+  });
+
+  it("renders the minimap once data has loaded", async () => {
+    fetchErdMock.mockResolvedValue(okPayload);
+    const { App } = await import("@/App");
+    render(<App serverUrl="http://localhost:1" />);
+    await waitFor(() => expect(screen.getByTestId("minimap")).toBeTruthy());
+  });
+});
+
+// Filter / details integration — drives the real Toolbar + EntityFilter so we
+// exercise the App ↔ Toolbar wiring end-to-end. ReactFlow stays mocked.
+describe("App: filter & details integration", () => {
+  beforeEach(() => {
+    setSampleNodes([
+      {
+        id: "model.demo.orders",
+        data: { name: "orders", resource_type: "model", columns: [], raw_sql_path: "models/orders.sql" },
+      },
+      {
+        id: "model.demo.customers",
+        data: { name: "customers", resource_type: "model", columns: [], raw_sql_path: "models/customers.sql" },
+      },
+      {
+        id: "source.demo.raw_orders",
+        data: { name: "raw_orders", resource_type: "source", columns: [] },
+      },
+    ]);
+  });
+
+  it("highlights matches and drops nodes disconnected from the matched set", async () => {
+    fetchErdMock.mockResolvedValue(okPayload);
+    const { App } = await import("@/App");
+    render(<App serverUrl="http://localhost:1" />);
+    await waitFor(() => expect(fetchErdMock).toHaveBeenCalled());
+
+    const input = screen.getByLabelText(/Filter entities by name/i);
+    fireEvent.change(input, { target: { value: "order" } });
+
+    // Both nodes whose name contains "order" are matches.
+    await waitFor(() => {
+      expect(screen.getByTestId("node-model.demo.orders").getAttribute("data-filter")).toBe("match");
+      expect(screen.getByTestId("node-source.demo.raw_orders").getAttribute("data-filter")).toBe("match");
+    });
+
+    // "customers" has no edges connecting it to either match → removed from canvas.
+    expect(screen.queryByTestId("node-model.demo.customers")).toBeNull();
+
+    // Match-count badge still surfaces "matches/total" against the full graph.
+    expect(screen.getByText("2/3")).toBeTruthy();
+  });
+
+  it("keeps nodes connected (via an edge) to a match as dimmed context", async () => {
+    // Reuse the sample but wire customers ↔ orders so the connected-context
+    // path is exercised. The mocked useEdgesState returns this list.
+    stableEdges.length = 0;
+    stableEdges.push({
+      id: "e1",
+      source: "model.demo.customers",
+      target: "model.demo.orders",
+    });
+    fetchErdMock.mockResolvedValue(okPayload);
+    const { App } = await import("@/App");
+    render(<App serverUrl="http://localhost:1" />);
+    await waitFor(() => expect(fetchErdMock).toHaveBeenCalled());
+
+    const input = screen.getByLabelText(/Filter entities by name/i);
+    fireEvent.change(input, { target: { value: "order" } });
+
+    // customers is not a match but is wired to orders → kept and dimmed.
+    await waitFor(() => {
+      expect(screen.getByTestId("node-model.demo.orders").getAttribute("data-filter")).toBe("match");
+      expect(screen.getByTestId("node-model.demo.customers").getAttribute("data-filter")).toBe("dim");
+    });
+
+    stableEdges.length = 0;
+  });
+
+  it("clears all dim/match decorations when the filter is emptied", async () => {
+    fetchErdMock.mockResolvedValue(okPayload);
+    const { App } = await import("@/App");
+    render(<App serverUrl="http://localhost:1" />);
+    await waitFor(() => expect(fetchErdMock).toHaveBeenCalled());
+
+    const input = screen.getByLabelText(/Filter entities by name/i);
+    fireEvent.change(input, { target: { value: "order" } });
+    // While filtered, the disconnected customers node disappears entirely.
+    await waitFor(() =>
+      expect(screen.queryByTestId("node-model.demo.customers")).toBeNull(),
+    );
+
+    fireEvent.click(screen.getByLabelText(/Clear filter/i));
+    await waitFor(() => {
+      expect(screen.getByTestId("node-model.demo.orders").getAttribute("data-filter")).toBe("off");
+      expect(screen.getByTestId("node-model.demo.customers").getAttribute("data-filter")).toBe("off");
+    });
+  });
+
+  it("opens the details pane on header click and closes on pane click", async () => {
+    fetchErdMock.mockResolvedValue(okPayload);
+    const { App } = await import("@/App");
+    render(<App serverUrl="http://localhost:1" />);
+    await waitFor(() => expect(fetchErdMock).toHaveBeenCalled());
+
+    fireEvent.click(screen.getByTestId("node-header-model.demo.orders"));
+    await waitFor(() => {
+      // The details pane heading shows the model name.
+      const heading = screen.getAllByText("orders");
+      expect(heading.length).toBeGreaterThan(0);
+      expect(screen.getByLabelText(/Close details/i)).toBeTruthy();
+    });
+
+    fireEvent.click(screen.getByTestId("pane"));
+    await waitFor(() => {
+      expect(screen.queryByLabelText(/Close details/i)).toBeNull();
+    });
+  });
+
+  it("does not open the details pane on clicks outside the header", async () => {
+    fetchErdMock.mockResolvedValue(okPayload);
+    const { App } = await import("@/App");
+    render(<App serverUrl="http://localhost:1" />);
+    await waitFor(() => expect(fetchErdMock).toHaveBeenCalled());
+
+    fireEvent.click(screen.getByTestId("node-body-model.demo.orders"));
+    // No details pane — body clicks shouldn't hijack selection.
+    expect(screen.queryByLabelText(/Close details/i)).toBeNull();
+  });
+
+  it("posts openFile on double-click for nodes with a raw_sql_path", async () => {
+    fetchErdMock.mockResolvedValue(okPayload);
+    const { App } = await import("@/App");
+    render(<App serverUrl="http://localhost:1" />);
+    await waitFor(() => expect(fetchErdMock).toHaveBeenCalled());
+
+    fireEvent.doubleClick(screen.getByTestId("node-model.demo.orders"));
+    expect(postMessageMock).toHaveBeenCalledWith({
+      type: "openFile",
+      path: "models/orders.sql",
+    });
+  });
+
+  it("does not post openFile on double-click when raw_sql_path is missing", async () => {
+    fetchErdMock.mockResolvedValue(okPayload);
+    const { App } = await import("@/App");
+    render(<App serverUrl="http://localhost:1" />);
+    await waitFor(() => expect(fetchErdMock).toHaveBeenCalled());
+
+    postMessageMock.mockClear();
+    fireEvent.doubleClick(screen.getByTestId("node-source.demo.raw_orders"));
+    expect(postMessageMock).not.toHaveBeenCalledWith(
+      expect.objectContaining({ type: "openFile" }),
+    );
   });
 });

@@ -1,0 +1,84 @@
+.erd-filter {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 28px;
+  padding: 0 8px;
+  background: var(--vscode-input-background, #3c3c3c);
+  color: var(--vscode-input-foreground, #d4d4d4);
+  border: 1px solid var(--vscode-input-border, transparent);
+  border-radius: 4px;
+  transition: border-color 0.1s ease, box-shadow 0.1s ease;
+}
+
+.erd-filter:focus-within {
+  border-color: var(--vscode-focusBorder, #007acc);
+  box-shadow: 0 0 0 1px var(--vscode-focusBorder, #007acc);
+}
+
+.erd-filter-empty {
+  border-color: var(--vscode-inputValidation-warningBorder, #b89500);
+}
+
+.erd-filter-icon {
+  display: inline-flex;
+  align-items: center;
+  color: var(--vscode-input-placeholderForeground, #a6a6a6);
+}
+
+.erd-filter-input {
+  flex: 1;
+  min-width: 160px;
+  height: 100%;
+  padding: 0;
+  background: transparent;
+  color: inherit;
+  border: none;
+  outline: none;
+  font-family: var(--vscode-font-family, sans-serif);
+  font-size: 13px;
+}
+
+.erd-filter-input::placeholder {
+  color: var(--vscode-input-placeholderForeground, #a6a6a6);
+}
+
+/* Hide the native search clear button — we render our own that matches the toolbar. */
+.erd-filter-input::-webkit-search-cancel-button,
+.erd-filter-input::-webkit-search-decoration {
+  appearance: none;
+}
+
+.erd-filter-count {
+  font-size: 11px;
+  color: var(--vscode-descriptionForeground, #a6a6a6);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.erd-filter-empty .erd-filter-count {
+  color: var(--vscode-inputValidation-warningForeground, #e5c07b);
+}
+
+.erd-filter-clear {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  background: transparent;
+  color: var(--vscode-foreground, #d4d4d4);
+  border: 1px solid transparent;
+  border-radius: 3px;
+  cursor: pointer;
+}
+
+.erd-filter-clear:hover {
+  background: var(--vscode-toolbar-hoverBackground, #2a2d2e);
+}
+
+.erd-filter-clear:focus-visible {
+  outline: 1px solid var(--vscode-focusBorder, #007acc);
+  outline-offset: 1px;
+}

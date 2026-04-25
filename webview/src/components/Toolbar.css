@@ -4,12 +4,20 @@
   right: 12px;
   z-index: 10;
   display: flex;
+  align-items: center;
   gap: 4px;
   padding: 4px;
   background: var(--vscode-editor-background, #1e1e1e);
   border: 1px solid var(--vscode-widget-border, #3c3c3c);
   border-radius: 6px;
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+}
+
+.erd-toolbar-divider {
+  width: 1px;
+  height: 18px;
+  margin: 0 2px;
+  background: var(--vscode-widget-border, #3c3c3c);
 }
 
 .erd-toolbar-btn {
