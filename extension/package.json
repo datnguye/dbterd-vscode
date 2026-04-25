@@ -2,7 +2,7 @@
   "name": "dbterd-vscode",
   "displayName": "dbt ERD",
   "description": "Visualize your dbt project as an interactive ERD.",
-  "version": "0.0.0",
+  "version": "0.0.4",
   "publisher": "datnguye",
   "engines": {
     "vscode": "^1.85.0"
