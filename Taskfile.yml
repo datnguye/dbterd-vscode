@@ -78,10 +78,11 @@ tasks:
       - npm test -- --run
 
   test:extension:
-    desc: Typecheck the extension and run the end-to-end suite (@vscode/test-electron).
+    desc: Typecheck the extension, run vitest unit tests, then the e2e suite.
     dir: extension
     cmds:
       - npm run check-types
+      - npm run test:unit
       - npm test
 
   lint:
@@ -99,16 +100,18 @@ tasks:
       - uv run ruff check .
 
   lint:webview:
-    desc: TypeScript typecheck for the webview.
+    desc: TypeScript typecheck and ESLint for the webview.
     dir: webview
     cmds:
       - npm run typecheck
+      - npm run lint
 
   lint:extension:
-    desc: TypeScript typecheck for the extension host.
+    desc: TypeScript typecheck and ESLint for the extension host.
     dir: extension
     cmds:
       - npm run check-types
+      - npm run lint
 
   format:
     desc: Apply Ruff formatting to the server.

@@ -7,7 +7,7 @@ import {
 } from "react";
 import { Handle, Position, type NodeProps } from "@xyflow/react";
 import type { Column } from "../types/erd";
-import type { ErdFlowNode } from "../layout";
+import type { ErdFlowNode } from "../types/flow";
 import { getVsCodeApi } from "../vscode";
 import { DatabaseIcon, TableIcon } from "./icons";
 import { COLLAPSE_THRESHOLD, COLLAPSED_VISIBLE } from "./tableConstants";

@@ -37,10 +37,49 @@ Day-to-day work is driven by `task` (root-level `Taskfile.yml`). Slash commands 
 ## Conventions
 
 - Python: `uv run ruff format && uv run ruff check` must pass. 100% test coverage.
-- TypeScript: `npm run typecheck` must pass in both `extension/` and `webview/` (no ESLint layer yet — the strict `tsconfig.json` is the lint budget).
+- TypeScript: `npm run typecheck` and `npm run lint` (ESLint flat config) must pass in both `extension/` and `webview/`. ESLint covers what the strict `tsconfig.json` can't (floating promises, unused vars, react-hooks/exhaustive-deps).
 - No relative imports in Python. All imports at module top.
 - No backward-compat shims unless explicitly asked.
 - Specific exception types in try/except.
+
+## Workspace structure
+
+Both TS workspaces follow the same shape — source under `src/`, tests under `tests/unit/`, mirroring the source tree. Tests are excluded from production bundles (`vite build`, `esbuild`, the `.vsix` via `.vscodeignore`).
+
+```
+extension/
+├── src/
+│   ├── extension.ts                 # activate/deactivate
+│   ├── server/{index,handshake,health,kill}.ts
+│   ├── provision/{index,discover-python,manifest,run}.ts
+│   ├── webview/{index,html,csp}.ts
+│   └── messaging/{protocol,bus}.ts  # protocol mirrors webview/src/messaging/protocol.ts
+├── tests/unit/                      # vitest, node env, no VS Code dep
+└── src/test/suite/e2e.test.ts       # mocha + @vscode/test-electron
+
+webview/
+├── src/
+│   ├── App.tsx
+│   ├── api/{index,client,errors}.ts # ErdApiError, classifyErdError, remediationHint
+│   ├── components/{ErdTableNode,Toolbar,icons,...}/
+│   ├── components/composite-edge/{index,geometry}.tsx
+│   ├── layout/{index,dagre,dimensions,handles}.ts
+│   ├── messaging/protocol.ts        # mirrors extension/src/messaging/protocol.ts
+│   └── types/{erd,flow}.ts          # erd.ts is auto-generated
+└── tests/unit/                      # vitest, jsdom, @testing-library/react
+```
+
+### Path aliases
+
+Both workspaces resolve `@/` to `src/` via `tsconfig.json` `paths` + a matching vite/vitest `resolve.alias`. Tests import via `@/api`, `@/server/handshake`, etc., not via `../../../src/...`. esbuild auto-honors the tsconfig paths for the runtime bundle.
+
+### Shared protocol
+
+The webview ↔ extension postMessage protocol lives in **two mirrored files**: `extension/src/messaging/protocol.ts` and `webview/src/messaging/protocol.ts`. They must stay byte-identical (modulo the leading "CANONICAL:" comment direction). Until a shared workspace package exists, treat changes as a contract update — touch both files in the same commit.
+
+### Server URL / CSP coupling
+
+`SERVER_URL_PATTERN` in the protocol module is also the CSP allow-list pattern (`extension/src/webview/csp.ts` imports it). If you loosen the regex, you loosen what `connect-src` will accept in the rendered webview.
 
 ## Agent memory
 

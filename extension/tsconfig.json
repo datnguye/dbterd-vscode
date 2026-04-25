@@ -4,7 +4,6 @@
     "target": "ES2022",
     "lib": ["ES2022"],
     "outDir": "dist",
-    "rootDir": "src",
     "noEmit": true,
     "sourceMap": true,
     "strict": true,
@@ -14,8 +13,12 @@
     "esModuleInterop": true,
     "skipLibCheck": true,
     "types": ["node", "vscode"],
-    "forceConsistentCasingInFileNames": true
+    "forceConsistentCasingInFileNames": true,
+    "baseUrl": ".",
+    "paths": {
+      "@/*": ["src/*"]
+    }
   },
-  "include": ["src/**/*"],
+  "include": ["src/**/*", "tests/**/*"],
   "exclude": ["node_modules", "dist"]
 }

@@ -7,8 +7,17 @@
   "engines": {
     "vscode": "^1.85.0"
   },
-  "categories": ["Visualization", "Data Science"],
-  "keywords": ["dbt", "erd", "data modeling", "dbterd", "visualization"],
+  "categories": [
+    "Visualization",
+    "Data Science"
+  ],
+  "keywords": [
+    "dbt",
+    "erd",
+    "data modeling",
+    "dbterd",
+    "visualization"
+  ],
   "icon": "icon.png",
   "bugs": {
     "url": "https://github.com/datnguye/dbterd-vscode/issues"
@@ -48,6 +57,18 @@
           "type": "string",
           "default": "",
           "description": "Optional override for the base Python interpreter used to bootstrap the managed server venv. Leave empty to auto-detect (dbt project .venv → $VIRTUAL_ENV → python3 on PATH)."
+        },
+        "dbterd.serverStartupTimeoutMs": {
+          "type": "number",
+          "default": 15000,
+          "minimum": 1000,
+          "description": "Milliseconds to wait for the server's DBTERD_READY handshake before failing. Increase on slow machines or first-time provisioning."
+        },
+        "dbterd.healthProbeTotalMs": {
+          "type": "number",
+          "default": 3000,
+          "minimum": 100,
+          "description": "Total milliseconds to retry GET /healthz after the handshake. Increase if the OS is slow to bind listening sockets."
         }
       }
     }
@@ -59,6 +80,7 @@
   },
   "scripts": {
     "check-types": "tsc --noEmit",
+    "lint": "eslint .",
     "compile": "npm run check-types && node esbuild.js",
     "watch": "npm-run-all -p watch:*",
     "watch:esbuild": "node esbuild.js --watch",
@@ -67,16 +89,21 @@
     "vscode:prepublish": "npm run package",
     "typecheck": "tsc --noEmit",
     "pretest": "npm run compile && node esbuild.js --tests",
-    "test": "node ./dist/test/runTest.js"
+    "test": "node ./dist/test/runTest.js",
+    "test:unit": "vitest run"
   },
   "devDependencies": {
     "@types/mocha": "^10.0.6",
     "@types/node": "^20.11.0",
     "@types/vscode": "^1.85.0",
+    "@typescript-eslint/eslint-plugin": "^8.59.0",
+    "@typescript-eslint/parser": "^8.59.0",
     "@vscode/test-electron": "^2.4.1",
     "esbuild": "^0.25.0",
+    "eslint": "^10.2.1",
     "mocha": "^10.4.0",
     "npm-run-all": "^4.1.5",
-    "typescript": "^5.4.0"
+    "typescript": "^5.4.0",
+    "vitest": "^4.1.5"
   }
 }

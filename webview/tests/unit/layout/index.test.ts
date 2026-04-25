@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { toFlowGraph } from "./layout";
-import type { ErdPayload } from "./types/erd";
+import { toFlowGraph } from "@/layout";
+import type { ErdPayload } from "@/types/erd";
 
 const payload: ErdPayload = {
   nodes: [

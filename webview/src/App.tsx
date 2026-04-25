@@ -7,11 +7,13 @@ import {
   useNodesState,
   type Edge,
 } from "@xyflow/react";
-import { fetchErd } from "./api";
+import { ErdApiError, fetchErd, remediationHint, type ErdErrorCode } from "./api";
 import { edgeTypes } from "./components/edgeTypes";
 import { nodeTypes } from "./components/nodeTypes";
 import { Toolbar } from "./components/Toolbar";
-import { toFlowGraph, type ErdFlowNode } from "./layout";
+import { toFlowGraph } from "./layout";
+import { isOutboundMessage } from "./messaging/protocol";
+import type { ErdFlowNode } from "./types/flow";
 import { getVsCodeApi } from "./vscode";
 
 interface AppProps {
@@ -20,19 +22,9 @@ interface AppProps {
 
 type LoadState = "idle" | "loading" | "ready" | "error";
 
-interface RefreshMessage {
-  type: "refresh";
-  serverUrl: string;
-}
-
-function isRefreshMessage(data: unknown): data is RefreshMessage {
-  if (typeof data !== "object" || data === null) return false;
-  const m = data as Record<string, unknown>;
-  if (m.type !== "refresh" || typeof m.serverUrl !== "string") return false;
-  // Defense-in-depth: the host always posts http(s) localhost URLs, but
-  // reject anything else so a compromised postMessage can't swap in a
-  // javascript: or data: scheme that then feeds fetch().
-  return /^https?:\/\//.test(m.serverUrl);
+interface ErrorState {
+  message: string;
+  code?: ErdErrorCode;
 }
 
 export function App({ serverUrl: initialUrl }: AppProps): ReactElement {
@@ -40,7 +32,7 @@ export function App({ serverUrl: initialUrl }: AppProps): ReactElement {
   const [nodes, setNodes, onNodesChange] = useNodesState<ErdFlowNode>([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
   const [status, setStatus] = useState<LoadState>("idle");
-  const [error, setError] = useState<string | undefined>();
+  const [error, setError] = useState<ErrorState | undefined>();
   // Monotonically increasing nonce to force re-fetch on `dbterd.refresh`,
   // even when the serverUrl hasn't changed. Without this, React reuses the
   // cached fetch and the user sees stale data after editing .dbterd.yml.
@@ -62,7 +54,11 @@ export function App({ serverUrl: initialUrl }: AppProps): ReactElement {
         getVsCodeApi()?.postMessage({ type: "setTitle", title });
       } catch (err) {
         if (signal.aborted) return;
-        setError(err instanceof Error ? err.message : String(err));
+        if (err instanceof ErdApiError) {
+          setError({ message: err.detail, code: err.code });
+        } else {
+          setError({ message: err instanceof Error ? err.message : String(err) });
+        }
         setStatus("error");
       }
     },
@@ -77,7 +73,7 @@ export function App({ serverUrl: initialUrl }: AppProps): ReactElement {
 
   useEffect(() => {
     const onMessage = (event: MessageEvent<unknown>): void => {
-      if (isRefreshMessage(event.data)) {
+      if (isOutboundMessage(event.data)) {
         setServerUrl(event.data.serverUrl);
         setRefreshNonce((n) => n + 1);
       }
@@ -86,7 +82,15 @@ export function App({ serverUrl: initialUrl }: AppProps): ReactElement {
     return () => window.removeEventListener("message", onMessage);
   }, []);
 
-  if (status === "error") return <div className="status error">Failed to load ERD: {error}</div>;
+  if (status === "error" && error) {
+    const hint = error.code ? remediationHint(error.code) : undefined;
+    return (
+      <div className="status error">
+        <div>Failed to load ERD: {error.message}</div>
+        {hint ? <div className="status-hint">{hint}</div> : null}
+      </div>
+    );
+  }
   if (status === "loading" && nodes.length === 0) {
     return <div className="status">Loading ERD…</div>;
   }

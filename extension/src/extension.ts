@@ -1,4 +1,6 @@
 import * as vscode from "vscode";
+
+import { EventBus, type PanelEvents } from "./messaging/bus";
 import { DbterdServer } from "./server";
 import { ErdPanel } from "./webview";
 
@@ -16,6 +18,9 @@ export async function activate(context: vscode.ExtensionContext): Promise<Dbterd
   server = new DbterdServer(context);
   context.subscriptions.push(server);
 
+  const bus = new EventBus<PanelEvents>();
+  context.subscriptions.push({ dispose: () => bus.clear() });
+
   // When the Python process dies after a successful startup (crash, OOM,
   // manual kill), surface an actionable message instead of leaving the
   // webview silently refusing to connect on its next fetch.
@@ -31,22 +36,39 @@ export async function activate(context: vscode.ExtensionContext): Promise<Dbterd
     },
   });
 
-  const panelCallbacks = {
-    async onReloadServer(): Promise<void> {
-      const url = await server!.reload();
-      // Re-render the panel with the (possibly new) URL — updateServerUrl
-      // bakes connect-src into the CSP, so this must go through createOrShow
-      // to avoid a stale CSP blocking fetches.
-      ErdPanel.createOrShow(context, url, panelCallbacks);
-      ErdPanel.current?.refresh();
-    },
+  const reloadAndRefresh = async (): Promise<void> => {
+    const url = await server!.reload();
+    // Re-render the panel with the (possibly new) URL. updateServerUrl bakes
+    // connect-src into the CSP, so new URLs require a full re-render.
+    ErdPanel.createOrShow(context, url, bus);
+    ErdPanel.current?.refresh();
   };
+
+  // Wire bus subscriptions before any panel exists.
+  bus.on("openFile", async (path) => {
+    try {
+      const doc = await vscode.workspace.openTextDocument(vscode.Uri.file(path));
+      await vscode.window.showTextDocument(doc, { preview: false });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      void vscode.window.showWarningMessage(`dbterd: cannot open ${path} (${message})`);
+    }
+  });
+  bus.on("refresh", () => ErdPanel.current?.refresh());
+  bus.on("reloadServer", async () => {
+    try {
+      await reloadAndRefresh();
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      void vscode.window.showErrorMessage(`dbterd: reload failed: ${message}`);
+    }
+  });
 
   context.subscriptions.push(
     vscode.commands.registerCommand("dbterd.openErd", async () => {
       try {
         const url = await server!.ensureRunning();
-        ErdPanel.createOrShow(context, url, panelCallbacks);
+        ErdPanel.createOrShow(context, url, bus);
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
         void vscode.window.showErrorMessage(`dbterd: ${message}`);
@@ -57,7 +79,7 @@ export async function activate(context: vscode.ExtensionContext): Promise<Dbterd
     }),
     vscode.commands.registerCommand("dbterd.reloadServer", async () => {
       try {
-        await panelCallbacks.onReloadServer();
+        await reloadAndRefresh();
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
         void vscode.window.showErrorMessage(`dbterd: reload failed: ${message}`);
