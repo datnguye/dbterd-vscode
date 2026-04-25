@@ -12,7 +12,7 @@
 
 <p align="center">
   <a href="https://marketplace.visualstudio.com/items?itemName=datnguye.dbterd-vscode">
-    <img alt="VS Code Marketplace version" src="https://img.shields.io/visual-studio-marketplace/v/datnguye.dbterd-vscode?style=flat-square&color=FF694A&label=marketplace"/>
+    <img alt="VS Code Marketplace version" src="https://vsmarketplacebadges.dev/version-short/datnguye.dbterd-vscode.svg?style=flat-square&color=FF694A&label=marketplace"/>
   </a>
   <a href="https://github.com/datnguye/dbterd-vscode/actions/workflows/ci.yml">
     <img alt="CI status" src="https://img.shields.io/github/actions/workflow/status/datnguye/dbterd-vscode/ci.yml?style=flat-square&label=ci"/>
