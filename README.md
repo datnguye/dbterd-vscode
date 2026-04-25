@@ -30,6 +30,9 @@
 
 ![dbt ERD rendering the jaffle-shop marts with a .dbterd.yml config side-by-side](./docs/images/erd-showcase.png)
 
+[![Sponsored by GitAds](https://gitads.dev/v1/ad-serve?source=datnguye/dbterd-vscode@github)](https://gitads.dev/v1/ad-track?source=datnguye/dbterd-vscode@github)
+
+
 ## Install
 
 From the [VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=datnguye.dbterd-vscode):
@@ -109,5 +112,3 @@ Either way, the late-night bug hunts stay fueled and the agents stay fed.
 <a href="https://buymeacoffee.com/datnguye">
   <img src="https://img.shields.io/badge/Buy_me_tokens-fuel_an_agent-FF694A?style=flat-square&labelColor=2b1810&logo=buymeacoffee&logoColor=white" alt="Buy me tokens" height="50" />
 </a>
-
-<!-- GitAds-Verify: UVZO3GJYWWTVFBTLLX7IJOBV3HYEAXYT -->
