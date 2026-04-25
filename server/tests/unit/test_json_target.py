@@ -4,10 +4,10 @@ from types import SimpleNamespace
 from dbterd.core.models import Column, Ref, Table
 
 import dbterd_server  # noqa: F401 — register the json target
-from dbterd_server.json_target import (
-    JsonAdapter,
-    _extract_metadata,
-    _index_original_file_paths,
+from dbterd_server.plugins.json_target import JsonAdapter
+from dbterd_server.plugins.json_target.manifest import (
+    extract_metadata,
+    index_original_file_paths,
 )
 
 
@@ -81,17 +81,17 @@ def test_format_relationship_round_trips() -> None:
     assert parsed["column_map"] == [["id"], ["customer_id"]]
 
 
-def test_index_original_file_paths_handles_none_manifest() -> None:
-    assert _index_original_file_paths(None) == {}
+def testindex_original_file_paths_handles_none_manifest() -> None:
+    assert index_original_file_paths(None) == {}
 
 
-def test_index_original_file_paths_handles_nodes_none() -> None:
+def testindex_original_file_paths_handles_nodes_none() -> None:
     # Some dbterd code paths build a manifest shim where .nodes may be None.
     manifest = SimpleNamespace(nodes=None)
-    assert _index_original_file_paths(manifest) == {}
+    assert index_original_file_paths(manifest) == {}
 
 
-def test_index_original_file_paths_skips_non_string_paths() -> None:
+def testindex_original_file_paths_skips_non_string_paths() -> None:
     manifest = SimpleNamespace(
         nodes={
             "model.a.b": SimpleNamespace(original_file_path="models/b.sql"),
@@ -100,21 +100,21 @@ def test_index_original_file_paths_skips_non_string_paths() -> None:
             "model.a.e": SimpleNamespace(),  # attribute absent entirely
         }
     )
-    assert _index_original_file_paths(manifest) == {"model.a.b": "models/b.sql"}
+    assert index_original_file_paths(manifest) == {"model.a.b": "models/b.sql"}
 
 
-def test_extract_metadata_handles_none_manifest() -> None:
-    assert _extract_metadata(None) == {"generated_at": "", "project_name": ""}
+def testextract_metadata_handles_none_manifest() -> None:
+    assert extract_metadata(None) == {"generated_at": "", "project_name": ""}
 
 
-def test_extract_metadata_handles_missing_metadata_attr() -> None:
+def testextract_metadata_handles_missing_metadata_attr() -> None:
     manifest = SimpleNamespace()
-    assert _extract_metadata(manifest) == {"generated_at": "", "project_name": ""}
+    assert extract_metadata(manifest) == {"generated_at": "", "project_name": ""}
 
 
-def test_extract_metadata_stringifies_non_string_fields() -> None:
+def testextract_metadata_stringifies_non_string_fields() -> None:
     manifest = SimpleNamespace(metadata=SimpleNamespace(generated_at=None, project_name=None))
-    assert _extract_metadata(manifest) == {"generated_at": "", "project_name": ""}
+    assert extract_metadata(manifest) == {"generated_at": "", "project_name": ""}
 
 
 def test_build_erd_handles_table_without_columns() -> None:

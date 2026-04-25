@@ -5,10 +5,7 @@ an interactive ERD. We'll use the
 [jaffle-shop](https://github.com/il-dat/jaffle-shop) example — the canonical
 "hello world" for dbt.
 
-## Table of Contents
-
 - [dbt ERD — Proof of Concept Demo](#dbt-erd--proof-of-concept-demo)
-  - [Table of Contents](#table-of-contents)
   - [What you'll see](#what-youll-see)
   - [Prerequisites](#prerequisites)
   - [Step 1 — Set up the dbt project](#step-1--set-up-the-dbt-project)

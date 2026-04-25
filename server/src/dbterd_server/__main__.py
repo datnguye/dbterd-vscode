@@ -3,15 +3,23 @@ import socket
 
 import uvicorn
 
-from dbterd_server.main import app
+from dbterd_server.api.app import app
+from dbterd_server.api.service import ErdService
+from dbterd_server.erd.cache import ErdCache
 
 
-def _pick_port(requested: int) -> int:
-    if requested != 0:
-        return requested
-    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-        s.bind(("127.0.0.1", 0))
-        return s.getsockname()[1]
+def _bind_socket(requested_port: int) -> socket.socket:
+    """Bind a listening socket on 127.0.0.1 *before* uvicorn starts serving.
+
+    Closes the handshake race the extension was hitting: the printed URL is
+    only emitted after the socket actually accepts connections, so the
+    extension never sees a "connection refused" window.
+    """
+    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    sock.bind(("127.0.0.1", requested_port))
+    sock.listen(128)
+    return sock
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -26,7 +34,13 @@ def _build_parser() -> argparse.ArgumentParser:
         "--project",
         type=str,
         default="",
-        help="Absolute path to the dbt project root.",
+        help="Absolute path to the default dbt project root.",
+    )
+    parser.add_argument(
+        "--allow-project",
+        action="append",
+        default=[],
+        help="Additional project paths permitted via /erd?project=. Repeatable.",
     )
     parser.add_argument(
         "--log-level",
@@ -39,13 +53,23 @@ def _build_parser() -> argparse.ArgumentParser:
 
 def main() -> None:
     args = _build_parser().parse_args()
-    port = _pick_port(args.port)
-    app.state.project_path = args.project
+    sock = _bind_socket(args.port)
+    bound_port = sock.getsockname()[1]
+
+    service = ErdService(
+        default_project_path=args.project,
+        allowed_project_paths=frozenset(args.allow_project),
+        cache=ErdCache(),
+    )
+    app.state.erd_service = service
 
     # Handshake line — the extension reads this to learn the URL.
-    print(f"DBTERD_READY http://127.0.0.1:{port}", flush=True)
+    # Now safe: socket is bound and listening before this prints.
+    print(f"DBTERD_READY http://127.0.0.1:{bound_port}", flush=True)
 
-    uvicorn.run(app, host="127.0.0.1", port=port, log_level=args.log_level)
+    config = uvicorn.Config(app, host="127.0.0.1", port=bound_port, log_level=args.log_level)
+    server = uvicorn.Server(config)
+    server.run(sockets=[sock])
 
 
 if __name__ == "__main__":

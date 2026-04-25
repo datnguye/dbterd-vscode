@@ -46,12 +46,12 @@ class ErdEdge(BaseModel):
     cardinality: Cardinality = ""
 
 
-class ErdPayload(BaseModel):
-    nodes: list[ErdNode]
-    edges: list[ErdEdge]
+class ErdMetadata(BaseModel):
     generated_at: datetime
     dbt_project_name: str
 
 
-class HealthStatus(BaseModel):
-    status: Literal["ok"]
+class ErdPayload(BaseModel):
+    nodes: list[ErdNode]
+    edges: list[ErdEdge]
+    metadata: ErdMetadata

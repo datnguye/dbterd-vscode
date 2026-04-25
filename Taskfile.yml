@@ -170,9 +170,9 @@ tasks:
     desc: Regenerate webview/src/types/erd.ts from the Pydantic schemas.
     cmds:
       - >-
-        cd server && uv run python -m dbterd_server.codegen
+        cd server && uv run python -m dbterd_server.tools.codegen
         | npx --yes -p json-schema-to-typescript json2ts
-        --bannerComment "// AUTO-GENERATED from server/src/dbterd_server/schemas.py — do not edit by hand.\n// Regenerate with: task sync-contract"
+        --bannerComment "// AUTO-GENERATED from server/src/dbterd_server/schemas/ — do not edit by hand.\n// Regenerate with: task sync-contract"
         > ../webview/src/types/erd.ts
       - cd webview && npx --no-install tsc --noEmit
 

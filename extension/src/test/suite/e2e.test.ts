@@ -135,22 +135,27 @@ suite("dbterd extension end-to-end", () => {
 
     const health = await httpGetWithRetry(`${serverUrl}/healthz`);
     assert.strictEqual(health.status, 200);
-    assert.deepStrictEqual(JSON.parse(health.body), { status: "ok" });
+    const healthBody = JSON.parse(health.body) as Record<string, unknown>;
+    assert.strictEqual(healthBody.status, "ok");
+    assert.strictEqual(typeof healthBody.version, "string");
+    assert.strictEqual(typeof healthBody.project_path_configured, "boolean");
 
     const erd = await httpGet(`${serverUrl}/erd`);
     assert.strictEqual(erd.status, 200, `GET /erd returned ${erd.status}: ${erd.body}`);
     const payload = JSON.parse(erd.body) as Record<string, unknown>;
     assert.ok(Array.isArray(payload.nodes), "payload.nodes must be an array");
     assert.ok(Array.isArray(payload.edges), "payload.edges must be an array");
+    const metadata = payload.metadata as Record<string, unknown>;
+    assert.ok(metadata, "payload.metadata must be present");
     assert.strictEqual(
-      typeof payload.generated_at,
+      typeof metadata.generated_at,
       "string",
-      "payload.generated_at must be a string",
+      "metadata.generated_at must be a string",
     );
     assert.strictEqual(
-      typeof payload.dbt_project_name,
+      typeof metadata.dbt_project_name,
       "string",
-      "payload.dbt_project_name must be a string",
+      "metadata.dbt_project_name must be a string",
     );
   });
 

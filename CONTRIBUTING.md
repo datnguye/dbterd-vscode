@@ -4,10 +4,7 @@ Thanks for your interest in making dbt ERDs less painful to look at. This repo
 is built for **agentic development** — Claude Code is a first-class contributor
 alongside humans. You can work either way; the tooling is the same.
 
-## Table of Contents
-
 - [Contributing to dbterd-vscode](#contributing-to-dbterd-vscode)
-  - [Table of Contents](#table-of-contents)
   - [Code of Conduct](#code-of-conduct)
   - [Ways to Contribute](#ways-to-contribute)
   - [Development Setup](#development-setup)
@@ -170,7 +167,7 @@ CI runs all three on every PR.
 
 ## Releases
 
-Release-driven — creating a GitHub Release creates the tag and triggers CI:
+Release-driven — creating a GitHub Release creates the tag and triggers CD:
 
 ```bash
 gh release create v0.1.0 --generate-notes --title "v0.1.0"
@@ -178,7 +175,7 @@ gh release create v0.1.0 --generate-notes --title "v0.1.0"
 gh release create v0.1.0-rc.1 --generate-notes --prerelease --title "v0.1.0-rc.1"
 ```
 
-CI (`.github/workflows/release.yml`) builds the webview, packages the `.vsix`,
+CD (`.github/workflows/release.yml`) builds the webview, packages the `.vsix`,
 uploads it to the Release, and publishes to the VS Code Marketplace (skipped
 for pre-releases). Release notes come from `--generate-notes` — we don't keep
 a `CHANGELOG.md`.

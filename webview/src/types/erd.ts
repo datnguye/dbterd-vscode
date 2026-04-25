@@ -1,4 +1,4 @@
-// AUTO-GENERATED from server/src/dbterd_server/schemas.py — do not edit by hand.\n// Regenerate with: task sync-contract
+// AUTO-GENERATED from server/src/dbterd_server/schemas/ — do not edit by hand.\n// Regenerate with: task sync-contract
 
 export type Id = string;
 export type Name = string;
@@ -31,8 +31,7 @@ export type DbtProjectName = string;
 export interface ErdPayload {
   nodes: Nodes;
   edges: Edges;
-  generated_at: GeneratedAt;
-  dbt_project_name: DbtProjectName;
+  metadata: ErdMetadata;
   [k: string]: unknown;
 }
 export interface ErdNode {
@@ -65,5 +64,10 @@ export interface ErdEdge {
   name?: Name2;
   label?: Label;
   cardinality?: Cardinality;
+  [k: string]: unknown;
+}
+export interface ErdMetadata {
+  generated_at: GeneratedAt;
+  dbt_project_name: DbtProjectName;
   [k: string]: unknown;
 }

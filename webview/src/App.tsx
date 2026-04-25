@@ -57,9 +57,8 @@ export function App({ serverUrl: initialUrl }: AppProps): ReactElement {
         setNodes(flow.nodes);
         setEdges(flow.edges);
         setStatus("ready");
-        const title = payload.dbt_project_name
-          ? `ERD of ${payload.dbt_project_name}`
-          : "dbt ERD";
+        const projectName = payload.metadata?.dbt_project_name;
+        const title = projectName ? `ERD of ${projectName}` : "dbt ERD";
         getVsCodeApi()?.postMessage({ type: "setTitle", title });
       } catch (err) {
         if (signal.aborted) return;

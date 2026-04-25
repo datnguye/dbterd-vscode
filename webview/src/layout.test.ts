@@ -56,8 +56,10 @@ const payload: ErdPayload = {
       relationship_type: "fk",
     },
   ],
-  generated_at: "2026-04-18T00:00:00Z",
-  dbt_project_name: "shop",
+  metadata: {
+    generated_at: "2026-04-18T00:00:00Z",
+    dbt_project_name: "shop",
+  },
 };
 
 describe("toFlowGraph", () => {
