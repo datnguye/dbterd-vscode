@@ -9,6 +9,8 @@ export interface PanelEvents {
   refresh: void;
   reloadServer: void;
   openFile: string;
+  parseStarted: void;
+  parseFinished: { ok: boolean };
 }
 
 export class EventBus<TEvents> {

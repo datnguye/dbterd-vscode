@@ -1,8 +1,32 @@
-# dbterd-vscode
+<p align="center">
+  <img src="./extension/icon.png" alt="dbt ERD logo" width="96" height="96"/>
+</p>
 
-A VS Code extension that turns your dbt project into an interactive ERD — zoom,
-pan, click a table to open its SQL, follow FK edges like breadcrumbs. Powered
-by [`dbterd`](https://github.com/datnguye/dbterd) under the hood.
+<h1 align="center">dbt ERD</h1>
+
+<p align="center">
+  A VS Code extension that turns your dbt project into an interactive ERD — zoom,
+  pan, click a table to open its SQL, follow FK edges like breadcrumbs. Powered
+  by <a href="https://github.com/datnguye/dbterd"><code>dbterd</code></a> under the hood.
+</p>
+
+<p align="center">
+  <a href="https://marketplace.visualstudio.com/items?itemName=datnguye.dbterd-vscode">
+    <img alt="VS Code Marketplace version" src="https://img.shields.io/visual-studio-marketplace/v/datnguye.dbterd-vscode?style=flat-square&color=FF694A&label=marketplace"/>
+  </a>
+  <a href="https://github.com/datnguye/dbterd-vscode/actions/workflows/ci.yml">
+    <img alt="CI status" src="https://img.shields.io/github/actions/workflow/status/datnguye/dbterd-vscode/ci.yml?style=flat-square&label=ci"/>
+  </a>
+  <a href="https://github.com/datnguye/dbterd-vscode/releases/latest">
+    <img alt="Latest release" src="https://img.shields.io/github/v/release/datnguye/dbterd-vscode?style=flat-square&label=release"/>
+  </a>
+  <a href="https://github.com/datnguye/dbterd-vscode/blob/main/LICENSE">
+    <img alt="License" src="https://img.shields.io/github/license/datnguye/dbterd-vscode?style=flat-square"/>
+  </a>
+  <a href="https://github.com/datnguye/dbterd-vscode/stargazers">
+    <img alt="GitHub stars" src="https://img.shields.io/github/stars/datnguye/dbterd-vscode?style=flat-square&color=FF694A"/>
+  </a>
+</p>
 
 ![dbt ERD rendering the jaffle-shop marts with a .dbterd.yml config side-by-side](./docs/images/erd-showcase.png)
 
@@ -83,6 +107,6 @@ consider sponsoring a coffee — or, in 2026 currency, roughly 1M Claude tokens.
 Either way, the late-night bug hunts stay fueled and the agents stay fed.
 
 <a href="https://buymeacoffee.com/datnguye">
-  <img src="https://img.shields.io/badge/Buy%20me%20tokens-%E2%98%95-FF694A?style=for-the-badge&labelColor=000000" alt="Buy Me a Coffee" height="50" />
+  <img src="https://img.shields.io/badge/Buy_me_tokens-fuel_an_agent-FF694A?style=flat-square&labelColor=2b1810&logo=buymeacoffee&logoColor=white" alt="Buy me tokens" height="32" />
 </a>
 

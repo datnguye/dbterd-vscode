@@ -51,8 +51,19 @@ describe("isInboundMessage", () => {
     expect(isInboundMessage({ type: "setTitle", title: "ERD" })).toBe(true);
   });
 
-  it.each([{ type: "refresh" }, { type: "reloadServer" }])("accepts %s", (msg) => {
-    expect(isInboundMessage(msg)).toBe(true);
+  it.each([{ type: "refresh" }, { type: "reloadServer" }, { type: "parseStarted" }])(
+    "accepts %s",
+    (msg) => {
+      expect(isInboundMessage(msg)).toBe(true);
+    },
+  );
+
+  it.each([{ ok: true }, { ok: false }])("accepts parseFinished with ok=%s", (extras) => {
+    expect(isInboundMessage({ type: "parseFinished", ...extras })).toBe(true);
+  });
+
+  it("rejects parseFinished without an ok flag", () => {
+    expect(isInboundMessage({ type: "parseFinished" })).toBe(false);
   });
 
   it.each([null, "string", 42, { type: "unknown" }])("rejects %s", (msg) => {

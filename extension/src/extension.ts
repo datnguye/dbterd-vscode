@@ -2,6 +2,7 @@ import * as vscode from "vscode";
 
 import { resolveLogDir } from "./logging";
 import { EventBus, type PanelEvents } from "./messaging/bus";
+import { ParseProgress } from "./progress";
 import { DbterdServer } from "./server";
 import { ErdPanel } from "./webview";
 
@@ -48,6 +49,11 @@ export async function activate(context: vscode.ExtensionContext): Promise<Dbterd
   const bus = new EventBus<PanelEvents>();
   context.subscriptions.push({ dispose: () => bus.clear() });
 
+  const parseProgress = new ParseProgress({
+    getServerLogPath: () => server?.currentServerLogPath,
+    openLogs: () => void openLogs(server),
+  });
+
   // When the Python process dies after a successful startup (crash, OOM,
   // manual kill), surface an actionable message instead of leaving the
   // webview silently refusing to connect on its next fetch.
@@ -84,6 +90,8 @@ export async function activate(context: vscode.ExtensionContext): Promise<Dbterd
     }
   });
   bus.on("refresh", () => ErdPanel.current?.refresh());
+  bus.on("parseStarted", () => parseProgress.start());
+  bus.on("parseFinished", ({ ok }) => parseProgress.finish(ok));
   bus.on("reloadServer", async () => {
     try {
       await reloadAndRefresh();

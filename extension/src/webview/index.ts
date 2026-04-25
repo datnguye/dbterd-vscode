@@ -85,6 +85,14 @@ export class ErdPanel {
     }
     if (msg.type === "setTitle") {
       this.panel.title = msg.title;
+      return;
+    }
+    if (msg.type === "parseStarted") {
+      this.bus.emit("parseStarted", undefined);
+      return;
+    }
+    if (msg.type === "parseFinished") {
+      this.bus.emit("parseFinished", { ok: msg.ok });
     }
   }
 }

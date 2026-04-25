@@ -63,6 +63,12 @@ export function App({ serverUrl: initialUrl }: AppProps): ReactElement {
     async (url: string, signal: AbortSignal): Promise<void> => {
       setStatus("loading");
       setError(undefined);
+      const vscodeApi = getVsCodeApi();
+      // Notify the extension so it can show a progress notification with a
+      // "Show Logs" action — useful for big dbt projects where dbterd runs
+      // for tens of seconds and the user otherwise sees only a spinner.
+      vscodeApi?.postMessage({ type: "parseStarted" });
+      let ok = false;
       try {
         const payload = await fetchErd(url, signal);
         if (signal.aborted) return;
@@ -72,7 +78,8 @@ export function App({ serverUrl: initialUrl }: AppProps): ReactElement {
         setStatus("ready");
         const projectName = payload.metadata?.dbt_project_name;
         const title = projectName ? `ERD of ${projectName}` : "dbt ERD";
-        getVsCodeApi()?.postMessage({ type: "setTitle", title });
+        vscodeApi?.postMessage({ type: "setTitle", title });
+        ok = true;
       } catch (err) {
         if (signal.aborted) return;
         if (err instanceof ErdApiError) {
@@ -81,6 +88,10 @@ export function App({ serverUrl: initialUrl }: AppProps): ReactElement {
           setError({ message: err instanceof Error ? err.message : String(err) });
         }
         setStatus("error");
+      } finally {
+        if (!signal.aborted) {
+          vscodeApi?.postMessage({ type: "parseFinished", ok });
+        }
       }
     },
     [setNodes, setEdges],

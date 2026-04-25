@@ -33,7 +33,8 @@ export const Toolbar = memo(function Toolbar({
       <button
         type="button"
         className="erd-toolbar-btn"
-        title="Refresh ERD (re-read manifest.json and .dbterd.yml)"
+        aria-label="Refresh ERD"
+        data-tooltip="Refresh ERD (re-read manifest.json and .dbterd.yml)"
         onClick={() => post("refresh")}
       >
         <RefreshIcon size={16} />
@@ -41,7 +42,8 @@ export const Toolbar = memo(function Toolbar({
       <button
         type="button"
         className="erd-toolbar-btn"
-        title="Reload Server (kill Python process and respawn)"
+        aria-label="Reload Server"
+        data-tooltip="Reload Server (kill Python process and respawn)"
         onClick={() => post("reloadServer")}
       >
         <ServerCogIcon size={16} />

@@ -48,3 +48,38 @@
   outline: 2px solid var(--vscode-focusBorder, #007acc);
   outline-offset: 1px;
 }
+
+/* Tooltip — themed to match the toolbar surface and shown without the
+ * native title= delay. Positioned below the button so it doesn't get clipped
+ * by the React Flow canvas above the toolbar. Pointer-events: none keeps
+ * the tooltip from intercepting hover when it overlaps the next button. */
+.erd-toolbar-btn[data-tooltip] {
+  position: relative;
+}
+
+.erd-toolbar-btn[data-tooltip]::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  white-space: nowrap;
+  padding: 4px 8px;
+  font-size: 12px;
+  line-height: 1.3;
+  color: var(--vscode-editorHoverWidget-foreground, #cccccc);
+  background: var(--vscode-editorHoverWidget-background, #252526);
+  border: 1px solid var(--vscode-editorHoverWidget-border, #454545);
+  border-radius: 4px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
+  opacity: 0;
+  transform: translateY(-2px);
+  transition: opacity 0.1s ease 0.25s, transform 0.1s ease 0.25s;
+  pointer-events: none;
+  z-index: 11;
+}
+
+.erd-toolbar-btn[data-tooltip]:hover::after,
+.erd-toolbar-btn[data-tooltip]:focus-visible::after {
+  opacity: 1;
+  transform: translateY(0);
+}

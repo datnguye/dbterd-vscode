@@ -19,7 +19,9 @@ export type InboundMessage =
   | { type: "openFile"; path: string }
   | { type: "refresh" }
   | { type: "reloadServer" }
-  | { type: "setTitle"; title: string };
+  | { type: "setTitle"; title: string }
+  | { type: "parseStarted" }
+  | { type: "parseFinished"; ok: boolean };
 
 // Extension → Webview
 export type OutboundMessage = { type: "refresh"; serverUrl: string };
@@ -29,7 +31,8 @@ export function isInboundMessage(msg: unknown): msg is InboundMessage {
   const m = msg as Record<string, unknown>;
   if (m.type === "openFile") return typeof m.path === "string";
   if (m.type === "setTitle") return typeof m.title === "string";
-  return m.type === "refresh" || m.type === "reloadServer";
+  if (m.type === "parseFinished") return typeof m.ok === "boolean";
+  return m.type === "refresh" || m.type === "reloadServer" || m.type === "parseStarted";
 }
 
 export function isOutboundMessage(msg: unknown): msg is OutboundMessage {
