@@ -144,15 +144,32 @@ export function App({ serverUrl: initialUrl }: AppProps): ReactElement {
 
   // Nodes adjacent to a match — kept (dimmed) so users see the immediate FK
   // context for their search. Truly disconnected nodes get filtered out.
+  // Undirected neighbour map, rebuilt only when the edge set changes (a data
+  // reload) — not on every filter keystroke. Derived from the live `edges`
+  // state so it stays consistent with the edges `decoratedEdges` filters on.
+  const adjacency = useMemo<Map<string, Set<string>>>(() => {
+    const map = new Map<string, Set<string>>();
+    const link = (a: string, b: string): void => {
+      const set = map.get(a) ?? new Set<string>();
+      set.add(b);
+      map.set(a, set);
+    };
+    for (const edge of edges) {
+      link(edge.source, edge.target);
+      link(edge.target, edge.source);
+    }
+    return map;
+  }, [edges]);
+
   const connectedIds = useMemo<Set<string>>(() => {
     if (!filterActive) return new Set();
     const set = new Set<string>(matchedIds);
-    for (const edge of edges) {
-      if (matchedIds.has(edge.source)) set.add(edge.target);
-      if (matchedIds.has(edge.target)) set.add(edge.source);
+    for (const id of matchedIds) {
+      const neighbours = adjacency.get(id);
+      if (neighbours) for (const n of neighbours) set.add(n);
     }
     return set;
-  }, [edges, matchedIds, filterActive]);
+  }, [adjacency, matchedIds, filterActive]);
 
   const decoratedNodes = useMemo<ErdFlowNode[]>(() => {
     const visible = filterActive ? nodes.filter((n) => connectedIds.has(n.id)) : nodes;

@@ -79,27 +79,32 @@ export async function activate(context: vscode.ExtensionContext): Promise<Dbterd
     ErdPanel.current?.refresh();
   };
 
-  // Wire bus subscriptions before any panel exists.
-  bus.on("openFile", async (path) => {
-    try {
-      const doc = await vscode.workspace.openTextDocument(vscode.Uri.file(path));
-      await vscode.window.showTextDocument(doc, { preview: false });
-    } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      void vscode.window.showWarningMessage(`dbterd: cannot open ${path} (${message})`);
-    }
-  });
-  bus.on("refresh", () => ErdPanel.current?.refresh());
-  bus.on("parseStarted", () => parseProgress.start());
-  bus.on("parseFinished", ({ ok }) => parseProgress.finish(ok));
-  bus.on("reloadServer", async () => {
-    try {
-      await reloadAndRefresh();
-    } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      showErrorWithLogs(server, `dbterd: reload failed: ${message}`);
-    }
-  });
+  // Wire bus subscriptions before any panel exists. Each subscription is
+  // tracked in context.subscriptions so it's torn down on deactivate — the
+  // bus.clear() above is a backstop, but tracking each disposable keeps the
+  // lifecycle explicit and robust against future refactors.
+  context.subscriptions.push(
+    bus.on("openFile", async (path) => {
+      try {
+        const doc = await vscode.workspace.openTextDocument(vscode.Uri.file(path));
+        await vscode.window.showTextDocument(doc, { preview: false });
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        void vscode.window.showWarningMessage(`dbterd: cannot open ${path} (${message})`);
+      }
+    }),
+    bus.on("refresh", () => ErdPanel.current?.refresh()),
+    bus.on("parseStarted", () => parseProgress.start()),
+    bus.on("parseFinished", ({ ok }) => parseProgress.finish(ok)),
+    bus.on("reloadServer", async () => {
+      try {
+        await reloadAndRefresh();
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        showErrorWithLogs(server, `dbterd: reload failed: ${message}`);
+      }
+    }),
+  );
 
   context.subscriptions.push(
     vscode.commands.registerCommand("dbterd.openErd", async () => {

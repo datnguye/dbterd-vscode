@@ -13,7 +13,7 @@ from dbterd_server.erd.errors import (
     ProjectPathMissingError,
 )
 from dbterd_server.erd.mapping import map_ref, map_table
-from dbterd_server.erd.postprocess import ensure_ref_columns_exist, mark_foreign_key_columns
+from dbterd_server.erd.postprocess import postprocess
 from dbterd_server.erd.timestamps import parse_generated_at
 from dbterd_server.schemas import ErdEdge, ErdMetadata, ErdPayload
 
@@ -83,16 +83,16 @@ def _result_from_payload(erd_json: str, project_path: Path, catalog_missing: boo
         mapped = map_ref(ref, i)
         if mapped is not None:
             edges.append(mapped)
-    # Catalog coverage is often partial — a FK column named in a relationships
-    # test may not be in the node's column list. Inject synthetic entries so
-    # the webview can anchor edges to real column handles instead of falling
-    # back to the table border.
-    ensure_ref_columns_exist(nodes, edges)
-    # dbterd's catalog-sourced columns never get is_foreign_key=True even
-    # when they're on the child side of a ref. Flip the flag ourselves —
-    # using the full column_map from the Ref, not just the edge's first pair,
-    # so composite FKs mark every participating column.
-    mark_foreign_key_columns(nodes, refs)
+    # Two fix-ups over a single shared node index:
+    #  1. Catalog coverage is often partial — a FK column named in a
+    #     relationships test may not be in the node's column list. Inject
+    #     synthetic entries so the webview can anchor edges to real column
+    #     handles instead of falling back to the table border.
+    #  2. dbterd's catalog-sourced columns never get is_foreign_key=True even
+    #     when they're on the child side of a ref. Flip the flag ourselves —
+    #     using the full column_map from the Ref, not just the edge's first
+    #     pair, so composite FKs mark every participating column.
+    postprocess(nodes, edges, refs)
 
     payload = ErdPayload(
         nodes=nodes,

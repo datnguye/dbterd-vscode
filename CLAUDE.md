@@ -42,6 +42,22 @@ Day-to-day work is driven by `task` (root-level `Taskfile.yml`). Slash commands 
 - No backward-compat shims unless explicitly asked.
 - Specific exception types in try/except.
 
+## Design patterns
+
+The load-bearing patterns of this codebase are catalogued — with file:line
+evidence — in the imported config below. Extend the established pattern instead
+of inventing a parallel one; don't add a new abstraction where one of these
+already fits.
+
+@.claude/design_patterns.md
+
+- When you add or remove a load-bearing pattern, update
+  `.claude/design_patterns.md` in the same change (new entry + TOC), with a
+  concrete file:line citation.
+- Line numbers there can drift; the cited symbol is authoritative — grep it.
+- If a real case needs a new pattern, document it there rather than leaving it
+  undocumented.
+
 ## Workspace structure
 
 Both TS workspaces follow the same shape — source under `src/`, tests under `tests/unit/`, mirroring the source tree. Tests are excluded from production bundles (`vite build`, `esbuild`, the `.vsix` via `.vscodeignore`).
