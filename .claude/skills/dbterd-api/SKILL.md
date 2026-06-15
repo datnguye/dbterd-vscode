@@ -17,47 +17,47 @@ Configuration comes from the extension: the user picks a dbt project root; we re
 
 ## Public API surface
 
-The `dbterd.api.DbtErd` façade exists, but its `get_erd()` returns **formatted text**
-(DBML / Mermaid / etc.) — not structured Python. That's fine for humans, useless
-for us.
-
-For structured `(tables, relationships)` tuples, drop one layer down and use the
-algo adapter directly:
+Use the `dbterd.api.DbtErd` façade with its built-in **`json` target** (shipped
+since dbterd 1.28). `get_erd()` then returns the canonical ERD payload as a JSON
+string — already the nodes/edges/metadata shape, so there's no need to drop down
+to the algo adapter or hand-assemble `(tables, relationships)` tuples:
 
 ```python
-from dbterd.adapters.algos.test_relationship import TestRelationshipAlgo
-from dbterd.adapters.algos.test_relationship import Table, Ref  # dataclasses
-# load manifest.json / catalog.json via dbterd's Manifest / Catalog loaders,
-# then:
-algo = TestRelationshipAlgo()
-tables, refs = algo.parse_artifacts(manifest=manifest, catalog=catalog,
-                                    select=[], exclude=[],
-                                    resource_type=["model", "source", "seed", "snapshot"],
-                                    algo="test_relationship")
+from dbterd.api import DbtErd
+
+erd_json = DbtErd(target="json", artifacts_dir=str(target_dir), **config).get_erd()
+payload = json.loads(erd_json)  # {"nodes": [...], "edges": [...], "metadata": {...}}
 ```
 
-`Table` fields we map: `name`, `database`, `schema`, `columns` (list of `Column`
-with `name`/`data_type`/`description`/`is_primary_key`/`is_foreign_key`),
-`raw_sql`, `resource_type`, `node_name` (the dbt `unique_id`).
+Native shape (what the server maps near-passthrough into `ErdPayload`):
 
-`Ref` fields: `name`, `table_map: (parent_node, child_node)`,
-`column_map: ([parent_cols], [child_cols])`, `type`.
+- **node**: `id` (dbt `unique_id`), `name`, `label`, `description`,
+  `resource_type`, `schema_name`, `database`, `columns`, `compiled_sql`.
+- **column**: `name`, `data_type`, `description`, `is_primary_key`,
+  `is_foreign_key` (the json target already sets the FK flag on child-side
+  columns — the server does **not** re-derive it).
+- **edge**: `id`, `from_id` (child), `to_id` (parent), `from_columns`,
+  `to_columns`, `relationship_type`, `name`, `label`, `cardinality`.
+- **metadata**: `generated_at`, `dbt_project_name` (the json target may emit
+  more, e.g. `dbterd_version`, but `ErdMetadata` maps only these two).
 
 ## Rules
 
-1. **Do not hand-roll manifest parsing.** Call `TestRelationshipAlgo.parse_artifacts`
-   — it already resolves `relationships` tests, merges catalog columns, and
-   filters by `resource_type`.
+1. **Do not hand-roll manifest parsing.** Let `DbtErd(target="json")` parse the
+   artifacts — it resolves `relationships` tests, merges catalog columns, and
+   filters by `resource_type` for you.
 2. **Do not shell out to the `dbterd` CLI.** We're a library consumer, not a
    subprocess orchestrator.
-3. **Never write to disk.** The server is read-only on the dbt project.
+3. **Never write to disk.** The server is read-only on the dbt project. (The one
+   exception: when `catalog.json` is missing, a synthetic catalog is staged in a
+   temp dir via a context manager — the user's `target/` stays untouched.)
 4. **Cache per target/ mtime.** Parsing `manifest.json` on every `/erd` request
    is slow. Cache keyed on the file's mtime; invalidate when it changes.
 5. **Graceful missing catalog.** If `catalog.json` is absent, return nodes with
    `data_type=None` and a warning header `X-Erd-Warnings: catalog-missing`.
    Don't 500.
-6. **Absolute paths only** when returning `raw_sql_path` — the extension resolves
-   them to VS Code URIs.
+6. **Surface `compiled_sql`, not file paths.** The webview opens a node's
+   compiled SQL in an untitled editor; the json target supplies it directly.
 
 ## Testing
 

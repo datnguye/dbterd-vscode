@@ -26,7 +26,7 @@ const payload: ErdPayload = {
           is_foreign_key: true,
         },
       ],
-      raw_sql_path: "/tmp/orders.sql",
+      compiled_sql: "SELECT id, customer_id FROM orders",
     },
     {
       id: "model.shop.customers",
@@ -43,7 +43,7 @@ const payload: ErdPayload = {
           is_foreign_key: false,
         },
       ],
-      raw_sql_path: null,
+      compiled_sql: null,
     },
   ],
   edges: [

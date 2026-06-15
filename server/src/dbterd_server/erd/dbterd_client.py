@@ -1,8 +1,9 @@
 """Thin wrapper around `dbterd.api.DbtErd`.
 
-Resolves the artifacts directory (real or synthetic-when-catalog-missing) and
-pre-validates the configured algo so we can map registry misses to a clean
-`ErdBuildError` without a broad except.
+Uses dbterd's ``json`` target, which emits the canonical nodes/edges/metadata
+payload directly. Resolves the artifacts directory (real or
+synthetic-when-catalog-missing) and pre-validates the configured algo so we can
+map registry misses to a clean `ErdBuildError` without a broad except.
 """
 
 import json
@@ -30,7 +31,10 @@ def invoke_dbterd(
     if not PluginRegistry.has_algo(algo):
         raise ConfigInvalidError(f"dbterd rejected configuration: unknown algo {algo!r}")
     with _resolved_artifacts_dir(target_dir, catalog_missing) as artifacts_dir:
-        kwargs: dict[str, Any] = {"target": "json", **config, "artifacts_dir": str(artifacts_dir)}
+        # `target` and `artifacts_dir` come last so user config can never
+        # override them: the mappers assume the json target's payload shape, and
+        # the artifacts dir is the one we resolved (real or synthetic-catalog).
+        kwargs: dict[str, Any] = {**config, "target": "json", "artifacts_dir": str(artifacts_dir)}
         return DbtErd(**kwargs).get_erd()
 
 

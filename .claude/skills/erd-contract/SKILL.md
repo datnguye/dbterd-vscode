@@ -7,7 +7,7 @@ description: Use whenever any change touches the shape of the /erd JSON payload 
 
 The `/erd` endpoint returns one JSON object consumed by the webview. Three layers must agree on its shape:
 
-1. **`server/src/dbterd_server/schemas.py`** — Pydantic models. Source of truth.
+1. **`server/src/dbterd_server/schemas/erd.py`** — Pydantic models. Source of truth.
 2. **`webview/src/types/erd.ts`** — TypeScript types. Generated from #1, never hand-edited.
 3. **`webview/src/components/*.tsx`** — React consumers of the types.
 
@@ -23,27 +23,43 @@ class Column(BaseModel):
 
 class ErdNode(BaseModel):
     id: str                      # dbt unique_id, e.g. "model.jaffle_shop.dim_customers"
-    name: str                    # short display name
+    name: str                    # display name
+    label: str | None = None
+    description: str | None = None
     resource_type: Literal["model", "source", "seed", "snapshot"]
     schema_name: str | None = None
     database: str | None = None
     columns: list[Column]
-    raw_sql_path: str | None = None   # for click-to-open in VS Code
+    compiled_sql: str | None = None   # full compiled SQL; webview opens it in an untitled editor
 
 class ErdEdge(BaseModel):
-    id: str                      # stable hash of (from_id, to_id, from_column, to_column)
-    from_id: str                 # node id
-    to_id: str
-    from_column: str | None = None
-    to_column: str | None = None
+    id: str                      # stable id from dbterd's json target
+    from_id: str                 # node id (child / FK-holder side)
+    to_id: str                   # node id (parent / referenced side)
+    from_column: str | None = None   # primary pair, = from_columns[0]
+    to_column: str | None = None     # primary pair, = to_columns[0]
+    from_columns: list[str] = []     # full list (composite FKs)
+    to_columns: list[str] = []
     relationship_type: Literal["fk", "lineage"] = "fk"
+    name: str | None = None          # constraint name
+    label: str | None = None         # friendly label from meta.relationship_labels
+    cardinality: Literal["n1", "11", "1n", "nn", ""] = ""
+
+class ErdMetadata(BaseModel):
+    generated_at: datetime
+    dbt_project_name: str
 
 class ErdPayload(BaseModel):
     nodes: list[ErdNode]
     edges: list[ErdEdge]
-    generated_at: datetime
-    dbt_project_name: str
+    metadata: ErdMetadata
 ```
+
+> Source-of-truth note: dbterd >=1.28's built-in `json` target emits this
+> nodes/edges/metadata shape natively. The server maps it near-passthrough
+> (deriving the singular `from_column`/`to_column` pair and injecting
+> edge-referenced columns missing from partial catalogs); it no longer
+> registers a custom dbterd target.
 
 ## Rules for changes
 
@@ -55,8 +71,8 @@ class ErdPayload(BaseModel):
 
 ## Checklist before finishing a contract change
 
-- [ ] `schemas.py` updated
-- [ ] `webview/src/types/erd.ts` regenerated
-- [ ] Pytest fixtures in `server/tests/fixtures/erd_sample.json` updated
+- [ ] `schemas/erd.py` updated
+- [ ] `webview/src/types/erd.ts` regenerated (`task sync-contract`)
+- [ ] Server tests against the `server/tests/fixtures/jaffle_shop` project updated
 - [ ] Webview components compile (`cd webview && npx tsc --noEmit`)
 - [ ] Added/updated a test exercising the new field end-to-end

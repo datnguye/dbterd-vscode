@@ -161,4 +161,6 @@ webview/dist/
 
 # Local Claude settings
 .claude/settings.local.json
+# Per-developer agent memory (release-manager uses memory: local)
+.claude/agent-memory-local/
 .DS_Store

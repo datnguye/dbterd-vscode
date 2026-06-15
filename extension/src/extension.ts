@@ -84,13 +84,15 @@ export async function activate(context: vscode.ExtensionContext): Promise<Dbterd
   // bus.clear() above is a backstop, but tracking each disposable keeps the
   // lifecycle explicit and robust against future refactors.
   context.subscriptions.push(
-    bus.on("openFile", async (path) => {
+    bus.on("openCompiledSql", async ({ name, sql }) => {
       try {
-        const doc = await vscode.workspace.openTextDocument(vscode.Uri.file(path));
+        const doc = await vscode.workspace.openTextDocument({ content: sql, language: "sql" });
         await vscode.window.showTextDocument(doc, { preview: false });
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
-        void vscode.window.showWarningMessage(`dbterd: cannot open ${path} (${message})`);
+        void vscode.window.showWarningMessage(
+          `dbterd: cannot open compiled SQL for ${name} (${message})`,
+        );
       }
     }),
     bus.on("refresh", () => ErdPanel.current?.refresh()),

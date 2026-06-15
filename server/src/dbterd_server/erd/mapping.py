@@ -1,86 +1,91 @@
-"""Pure functions that translate dbterd's JSON-target dicts into our schema."""
+"""Pure functions that translate dbterd's json-target dicts into our schema.
+
+dbterd's json target emits the canonical nodes/edges/metadata shape, so these
+mappers are close to passthrough — they validate, coerce the
+resource/relationship types and cardinality into our literal domains (unknown
+values degrade rather than crash, via `coerce_literal`), and derive the singular
+primary column pair (`from_column`/`to_column`) the webview's handle-fallback
+logic relies on.
+"""
 
 import logging
-from pathlib import Path
 from typing import Any
 
-from dbterd_server.erd.cardinality import normalize as normalize_cardinality
-from dbterd_server.schemas import Column, ErdEdge, ErdNode, ResourceType
+from dbterd_server.erd.coerce import coerce_literal
+from dbterd_server.schemas import (
+    Cardinality,
+    Column,
+    ErdEdge,
+    ErdNode,
+    RelationshipType,
+    ResourceType,
+)
 
 _logger = logging.getLogger(__name__)
 
-_RESOURCE_TYPES: list[ResourceType] = ["model", "source", "seed", "snapshot"]
+# The closed literal domains we coerce dbterd's values into. Each pairs with a
+# default used when dbterd emits something outside the set (see `coerce_literal`).
+_RESOURCE_TYPES: frozenset[ResourceType] = frozenset(("model", "source", "seed", "snapshot"))
+_RELATIONSHIP_TYPES: frozenset[RelationshipType] = frozenset(("fk", "lineage"))
+_CARDINALITIES: frozenset[Cardinality] = frozenset(("n1", "11", "1n", "nn", ""))
 
 
-def map_table(table: dict[str, Any], project_path: Path) -> ErdNode:
+def map_node(node: dict[str, Any]) -> ErdNode:
     columns = [
         Column(
             name=col["name"],
             data_type=col.get("data_type"),
             description=col.get("description") or None,
             is_primary_key=bool(col.get("is_primary_key", False)),
-            is_foreign_key=False,  # set later by post-processing
+            is_foreign_key=bool(col.get("is_foreign_key", False)),
         )
-        for col in (table.get("columns") or [])
+        for col in (node.get("columns") or [])
     ]
-    # Use table["name"] as the id, not node_name. The JSON target uses
-    # table.name (which reflects entity_name_format) as the key, and edges
-    # reference it — using node_name here would desync the graph whenever the
-    # user sets entity-name-format != "resource.package.model".
     return ErdNode(
-        id=table["name"],
-        name=table["name"],
-        resource_type=_resolve_resource_type(table.get("resource_type")),
-        schema_name=table.get("schema") or None,
-        database=table.get("database") or None,
+        id=node["id"],
+        name=node["name"],
+        label=node.get("label") or None,
+        description=node.get("description") or None,
+        resource_type=coerce_literal(
+            node.get("resource_type"), _RESOURCE_TYPES, "model", field="resource_type"
+        ),
+        schema_name=node.get("schema_name") or None,
+        database=node.get("database") or None,
         columns=columns,
-        raw_sql_path=resolve_raw_sql_path(table, project_path),
+        compiled_sql=node.get("compiled_sql") or None,
     )
 
 
-def _resolve_resource_type(raw: Any) -> ResourceType:
-    return raw if raw in _RESOURCE_TYPES else "model"
-
-
-def resolve_raw_sql_path(table: dict[str, Any], project_path: Path) -> str | None:
-    # Only models have compiled SQL we care about. original_file_path comes
-    # straight from the manifest via our JSON target; verify it resolves on
-    # disk because a broken link is worse than no link.
-    if table.get("resource_type") != "model":
+def map_edge(edge: dict[str, Any]) -> ErdEdge | None:
+    from_cols = list(edge.get("from_columns") or [])
+    to_cols = list(edge.get("to_columns") or [])
+    if not from_cols or not to_cols:
         return None
-    relative = table.get("original_file_path")
-    if not isinstance(relative, str) or not relative:
-        return None
-    candidate = (project_path / relative).resolve()
-    return str(candidate) if candidate.is_file() else None
-
-
-def map_ref(ref: dict[str, Any], index: int) -> ErdEdge | None:
-    parent, child = ref["table_map"]
-    parent_cols, child_cols = ref["column_map"]
-    if not parent_cols or not child_cols:
-        return None
-    if len(parent_cols) != len(child_cols):
-        # A misaligned ref can't be paired safely — the "primary" pair at
+    if len(from_cols) != len(to_cols):
+        # A misaligned edge can't be paired safely — the "primary" pair at
         # index 0 would silently associate unrelated columns. Drop the whole
         # edge and log so the user can investigate the underlying manifest.
         _logger.warning(
-            "Skipping ref %s: parent_cols (%d) and child_cols (%d) differ in length",
-            ref.get("name"),
-            len(parent_cols),
-            len(child_cols),
+            "Skipping edge %s: from_columns (%d) and to_columns (%d) differ in length",
+            edge.get("id"),
+            len(from_cols),
+            len(to_cols),
         )
         return None
     return ErdEdge(
-        id=f"{ref.get('name') or 'ref'}__{index}",
-        from_id=parent,
-        to_id=child,
-        from_column=parent_cols[0],
-        to_column=child_cols[0],
-        from_columns=list(parent_cols),
-        to_columns=list(child_cols),
-        relationship_type="fk",
-        name=ref.get("name") or None,
-        label=ref.get("relationship_label") or None,
-        cardinality=normalize_cardinality(ref.get("type", ""), ref.get("name")),
+        id=edge["id"],
+        from_id=edge["from_id"],
+        to_id=edge["to_id"],
+        from_column=from_cols[0],
+        to_column=to_cols[0],
+        from_columns=from_cols,
+        to_columns=to_cols,
+        relationship_type=coerce_literal(
+            edge.get("relationship_type"), _RELATIONSHIP_TYPES, "fk", field="relationship_type"
+        ),
+        name=edge.get("name") or None,
+        label=edge.get("label") or None,
+        cardinality=coerce_literal(
+            edge.get("cardinality", ""), _CARDINALITIES, "", field="cardinality"
+        ),
     )

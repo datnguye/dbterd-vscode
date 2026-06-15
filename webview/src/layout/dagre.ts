@@ -6,8 +6,9 @@ import dagre from "@dagrejs/dagre";
 import type { ErdEdge, ErdNode } from "../types/erd";
 import { estimateDimensions, type TableDimensions } from "./dimensions";
 
-// "LR" = left-to-right hierarchical. For FK ERDs this reads as parent → child
-// (referenced → referencing), the conventional direction for schema diagrams.
+// "LR" = left-to-right hierarchical. dbterd's json target orders edges
+// from_id = FK holder (child / referencing) → to_id = referenced (parent),
+// so the diagram reads referencing → referenced left-to-right.
 const LAYOUT_DIRECTION = "LR";
 const NODE_SEPARATION = 60;
 const RANK_SEPARATION = 120;

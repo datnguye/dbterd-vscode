@@ -32,11 +32,11 @@ export const DetailsPane = memo(function DetailsPane({
     return () => window.removeEventListener("keydown", onKey, { capture: true });
   }, [onClose]);
 
-  const path = node.raw_sql_path;
-  const openFile = useCallback((): void => {
-    if (!path) return;
-    getVsCodeApi()?.postMessage({ type: "openFile", path });
-  }, [path]);
+  const compiledSql = node.compiled_sql;
+  const openCompiledSql = useCallback((): void => {
+    if (!compiledSql) return;
+    getVsCodeApi()?.postMessage({ type: "openCompiledSql", name: node.name, sql: compiledSql });
+  }, [compiledSql, node.name]);
 
   const Icon = node.resource_type === "source" ? DatabaseIcon : TableIcon;
 
@@ -59,6 +59,10 @@ export const DetailsPane = memo(function DetailsPane({
           <CloseIcon size={14} />
         </button>
       </header>
+
+      {node.description ? (
+        <p className="erd-details-description">{node.description}</p>
+      ) : null}
 
       <dl className="erd-details-meta">
         <div>
@@ -83,16 +87,15 @@ export const DetailsPane = memo(function DetailsPane({
         </div>
       </dl>
 
-      {path ? (
+      {compiledSql ? (
         <button
           type="button"
           className="erd-details-open-file"
-          onClick={openFile}
-          title={path}
+          onClick={openCompiledSql}
+          title="Open compiled SQL in editor"
         >
           <FileCodeIcon size={14} />
-          <span>Open model file</span>
-          <span className="erd-details-open-file-path">{path}</span>
+          <span>Open compiled SQL</span>
         </button>
       ) : null}
 

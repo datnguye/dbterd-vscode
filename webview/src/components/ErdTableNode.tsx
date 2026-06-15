@@ -32,7 +32,7 @@ function ColumnRow({ col }: { col: Column }): ReactElement {
 }
 
 export const ErdTableNode = memo(function ErdTableNode({ data }: NodeProps<ErdFlowNode>) {
-  const path = data.raw_sql_path;
+  const hasCompiledSql = typeof data.compiled_sql === "string" && data.compiled_sql.length > 0;
 
   const canCollapse = data.columns.length > COLLAPSE_THRESHOLD;
   const [expanded, setExpanded] = useState(false);
@@ -63,7 +63,7 @@ export const ErdTableNode = memo(function ErdTableNode({ data }: NodeProps<ErdFl
           silently dropped by React Flow. */}
       <Handle type="target" position={Position.Left} id="__table_in" />
       <Handle type="source" position={Position.Right} id="__table_out" />
-      <header className="erd-table-header" title={path ?? ""}>
+      <header className="erd-table-header" title={hasCompiledSql ? "Double-click to open compiled SQL" : ""}>
         <span className="erd-table-icon">
           {data.resource_type === "source" ? <DatabaseIcon size={14} /> : <TableIcon size={14} />}
         </span>

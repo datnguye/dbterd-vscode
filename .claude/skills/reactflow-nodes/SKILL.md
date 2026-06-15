@@ -28,7 +28,7 @@ Each node is a React component. We register them in one `nodeTypes` map passed t
 3. **v12 typing.** Custom node components receive `NodeProps<TFlowNode>` where `TFlowNode = Node<YourData, "erdTable">`. The string literal is the `type` key registered in `nodeTypes`.
 4. **Handles on columns, not the node.** Edges connect column-to-column. Each column row owns a left and right `<Handle>` with `id={column.name}`. The edge's `sourceHandle` / `targetHandle` references that id.
 5. **Theme with CSS variables.** Never hardcode colors. Use `var(--vscode-editor-background)`, `var(--vscode-editor-foreground)`, `var(--vscode-focusBorder)`, etc.
-6. **Click-to-open.** Clicking the header posts a message to the extension: `{ type: "openFile", path: node.data.raw_sql_path }`. The extension resolves and opens it.
+6. **Open compiled SQL.** Double-clicking the node (or the details-pane button) posts `{ type: "openCompiledSql", name: node.data.name, sql: node.data.compiled_sql }` to the extension, which opens the SQL in an untitled editor. Guard on `compiled_sql` being a non-empty string.
 7. **No layout logic inside nodes.** Positioning is computed once by dagre/elkjs in `layout.ts` before nodes hit React Flow.
 
 ## File layout

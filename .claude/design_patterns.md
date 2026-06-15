@@ -14,16 +14,16 @@ symbol — the pattern is the point, not the exact line.
 - [Design Patterns in dbterd-vscode](#design-patterns-in-dbterd-vscode)
   - [Table of Contents](#table-of-contents)
   - [Server (Python / FastAPI)](#server-python--fastapi)
-    - [1. Plugin + Registry (via decorator)](#1-plugin--registry-via-decorator)
-    - [2. Adapter](#2-adapter)
-    - [3. Application Factory](#3-application-factory)
-    - [4. Dependency Injection](#4-dependency-injection)
-    - [5. Facade / Service Layer](#5-facade--service-layer)
-    - [6. Pipeline with a shared index](#6-pipeline-with-a-shared-index)
-    - [7. Strategy via context manager (RAII)](#7-strategy-via-context-manager-raii)
-    - [8. Polymorphic error mapping](#8-polymorphic-error-mapping)
-    - [9. LRU Cache](#9-lru-cache)
-    - [10. Registration helpers](#10-registration-helpers)
+    - [1. Registry validation (fail fast on unknown algo)](#1-registry-validation-fail-fast-on-unknown-algo)
+    - [2. Application Factory](#2-application-factory)
+    - [3. Dependency Injection](#3-dependency-injection)
+    - [4. Facade / Service Layer](#4-facade--service-layer)
+    - [5. Pipeline with a shared index](#5-pipeline-with-a-shared-index)
+    - [6. Strategy via context manager (RAII)](#6-strategy-via-context-manager-raii)
+    - [7. Polymorphic error mapping](#7-polymorphic-error-mapping)
+    - [8. LRU Cache](#8-lru-cache)
+    - [9. Registration helpers](#9-registration-helpers)
+    - [10. Graceful literal coercion (one helper, many domains)](#10-graceful-literal-coercion-one-helper-many-domains)
   - [Extension (TypeScript / VS Code host)](#extension-typescript--vs-code-host)
     - [11. Observer (typed event bus)](#11-observer-typed-event-bus)
     - [12. Disposable](#12-disposable)
@@ -38,24 +38,16 @@ symbol — the pattern is the point, not the exact line.
 
 ## Server (Python / FastAPI)
 
-### 1. Plugin + Registry (via decorator)
-The JSON output target registers itself with dbterd's global `PluginRegistry`
-through a class decorator, so `DbtErd(target="json")` resolves it by name with
-no hard import in the call site — the canonical plugin/registry shape.
+### 1. Registry validation (fail fast on unknown algo)
+dbterd ships a built-in `json` target (since 1.28) that emits the canonical
+nodes/edges/metadata payload, so `DbtErd(target="json")` resolves natively with
+no plugin registration on our side. We still consult dbterd's global
+`PluginRegistry` to pre-validate the configured *algo*, turning a registry miss
+into a clean `ConfigInvalidError` instead of a deep crash.
 
-- `server/src/dbterd_server/plugins/json_target/adapter.py:21` — `@register_target("json", ...)` decorates `JsonAdapter`.
-- `server/src/dbterd_server/plugins/json_target/__init__.py:3-4` — importing the subpackage triggers the registration side effect.
-- `server/src/dbterd_server/erd/dbterd_client.py:30` — `PluginRegistry.has_algo(algo)` validates against the registry before invoking, turning a registry miss into a clean `ConfigInvalidError` instead of a deep crash.
+- `server/src/dbterd_server/erd/dbterd_client.py:32` — `PluginRegistry.has_algo(algo)` validates against the registry before invoking.
 
-### 2. Adapter
-`JsonAdapter` adapts dbterd's `BaseTargetAdapter` contract to our lossless JSON
-shape — translating dbterd's `Table`/`Ref` models into the dicts our schema
-expects.
-
-- `server/src/dbterd_server/plugins/json_target/adapter.py:22` — `class JsonAdapter(BaseTargetAdapter)`.
-- `server/src/dbterd_server/plugins/json_target/serializers.py` — the per-model translation functions (`table_to_dict`, `relationship_to_dict`).
-
-### 3. Application Factory
+### 2. Application Factory
 `create_app()` builds and wires a fresh `FastAPI` instance (middleware, error
 handlers, routes, optional injected service). Tests get an isolated app;
 production gets the module-level singleton.
@@ -63,14 +55,14 @@ production gets the module-level singleton.
 - `server/src/dbterd_server/api/app.py:16` — `def create_app(service: ErdService | None = None) -> FastAPI`.
 - `server/src/dbterd_server/api/app.py:28` — module-level `app = create_app()` for `uvicorn` + import-the-singleton tests.
 
-### 4. Dependency Injection
+### 3. Dependency Injection
 Routes receive the `ErdService` via FastAPI's `Depends`, so they never reach
 into `app.state` directly and can be tested with a stub service.
 
 - `server/src/dbterd_server/api/dependencies.py:8` — `get_erd_service(request)` pulls the service off app state in one place.
 - `server/src/dbterd_server/api/routes/erd.py:11` — `ServiceDep = Annotated[ErdService, Depends(get_erd_service)]`, reused by `routes/health.py:12`.
 
-### 5. Facade / Service Layer
+### 4. Facade / Service Layer
 `ErdService` is a thin facade over the cache + builder, plus project-path
 allow-list policy. Routes call `service.build(path)` and stay ignorant of
 caching and orchestration.
@@ -78,16 +70,18 @@ caching and orchestration.
 - `server/src/dbterd_server/api/service.py:7` — `class ErdService` holds the cache and the allow-list.
 - `server/src/dbterd_server/api/service.py:37` — `build()` delegates to `build_erd(project_path, self._cache)`.
 
-### 6. Pipeline with a shared index
+### 5. Pipeline with a shared index
 `build_erd` is a linear pipeline (validate → config → cache check → invoke
-dbterd → map → post-process). The post-processing passes share a single
-`_NodeIndex` (node-by-id + memoized per-node column-name **set**) so the two
-fix-up passes don't each rebuild the index, keeping it O(edges) on wide tables.
+dbterd → map → post-process). The post-process pass runs two fix-ups over a
+single `_NodeIndex` (node-by-id + node-by-name + memoized per-node column-name
+**set**): first reconcile edge endpoints to canonical node ids, then inject
+edge-referenced columns missing from a node. Both stay O(edges) on wide tables
+via the index's O(1) lookups instead of rescanning nodes.
 
 - `server/src/dbterd_server/erd/builder.py:27` — `build_erd(...)` orchestrates the stages as thin glue.
-- `server/src/dbterd_server/erd/postprocess.py` — `_NodeIndex` plus the single `postprocess(nodes, edges, refs)` entry point that runs both passes over one index. (Introduced by the design review; see git history.)
+- `server/src/dbterd_server/erd/postprocess.py` — `_NodeIndex` (by-id, by-name, column-name set) plus the `postprocess(nodes, edges)` entry point: `reconcile_edge_endpoints` remaps short-name endpoints (the `entity-name-format: model` quirk) to real node ids, then `ensure_ref_columns_exist` injects edge-referenced columns missing from a node's column list.
 
-### 7. Strategy via context manager (RAII)
+### 6. Strategy via context manager (RAII)
 When the catalog is missing, dbterd still needs a `catalog.json`. A
 `@contextmanager` stages a synthetic catalog in a temp dir and tears it down on
 exit — the "missing vs present" branch is encapsulated as a resource strategy,
@@ -95,7 +89,7 @@ leaving the caller's `with` block clean.
 
 - `server/src/dbterd_server/erd/dbterd_client.py:37` — `@contextmanager _resolved_artifacts_dir(...)` yields either the real `target/` or a temp dir with a synthetic catalog.
 
-### 8. Polymorphic error mapping
+### 7. Polymorphic error mapping
 Each domain error subclass carries its own `code` + `http_status`, so the
 exception handler maps to HTTP with zero `if/elif` string-sniffing — open for
 extension (add a subclass), closed for modification (handler untouched).
@@ -104,14 +98,14 @@ extension (add a subclass), closed for modification (handler untouched).
 - `server/src/dbterd_server/erd/errors.py:11-37` — subclasses (`ManifestMissingError`, `ProjectPathInvalidError`, …) override the two attributes.
 - `server/src/dbterd_server/api/errors.py:10-19` — one handler reads `err.code` / `err.http_status` for any subclass.
 
-### 9. LRU Cache
+### 8. LRU Cache
 `ErdCache` is an `OrderedDict`-backed LRU keyed on `(project path, input
 mtimes)`, bounding memory for long-lived servers that see many workspaces.
 
 - `server/src/dbterd_server/erd/cache.py:40` — `class ErdCache`, `OrderedDict` + `move_to_end` for recency, `popitem(last=False)` to evict.
 - `server/src/dbterd_server/erd/cache.py:15` — `CacheKey` (frozen dataclass) makes the key a value object keyed on mtimes.
 
-### 10. Registration helpers
+### 9. Registration helpers
 App wiring is split into small `register_*` functions, each owning one concern.
 Keeps `create_app` declarative and each concern independently testable.
 
@@ -119,14 +113,26 @@ Keeps `create_app` declarative and each concern independently testable.
 - `server/src/dbterd_server/api/errors.py:18` — `register_error_handlers(app)`.
 - `server/src/dbterd_server/api/routes/__init__.py:6` — `register_routes(app)`.
 
+### 10. Graceful literal coercion (one helper, many domains)
+dbterd's json target can emit a value outside one of our closed `Literal`
+domains (an unmodeled `resource_type`, an unrenderable `cardinality`). Letting
+it reach Pydantic would fail validation and crash the whole build over one stray
+field. A single generic `coerce_literal(raw, allowed, default, field=...)`
+keeps known values and downgrades unknowns to a per-domain default (logged at
+debug) — so adding a degradable field is one call with its `(allowed, default)`
+pair, not a bespoke `_resolve_*` function per domain.
+
+- `server/src/dbterd_server/erd/coerce.py` — `coerce_literal(...)`, the one membership-test-with-fallback used by every degradable field.
+- `server/src/dbterd_server/erd/mapping.py:28-30` — the `_RESOURCE_TYPES` / `_RELATIONSHIP_TYPES` / `_CARDINALITIES` domain sets, each fed to `coerce_literal` at its mapping site.
+
 ---
 
 ## Extension (TypeScript / VS Code host)
 
 ### 11. Observer (typed event bus)
 A minimally-typed `EventBus<PanelEvents>` decouples the webview's user actions
-(refresh, openFile, …) from the host's side effects. Publishers and subscribers
-never reference each other — avoids callbacks-into-callbacks plumbing.
+(refresh, openCompiledSql, …) from the host's side effects. Publishers and
+subscribers never reference each other — avoids callbacks-into-callbacks plumbing.
 
 - `extension/src/messaging/bus.ts:16` — `class EventBus<TEvents>` with typed `on`/`emit`.
 - `extension/src/messaging/bus.ts:19` — `on()` returns a `{ dispose() }` subscription (composes with the Disposable pattern).

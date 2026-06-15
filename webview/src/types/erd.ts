@@ -2,16 +2,18 @@
 
 export type Id = string;
 export type Name = string;
+export type Label = string | null;
+export type Description = string | null;
 export type ResourceType = "model" | "source" | "seed" | "snapshot";
 export type SchemaName = string | null;
 export type Database = string | null;
 export type Name1 = string;
 export type DataType = string | null;
-export type Description = string | null;
+export type Description1 = string | null;
 export type IsPrimaryKey = boolean;
 export type IsForeignKey = boolean;
 export type Columns = Column[];
-export type RawSqlPath = string | null;
+export type CompiledSql = string | null;
 export type Nodes = ErdNode[];
 export type Id1 = string;
 export type FromId = string;
@@ -22,7 +24,7 @@ export type FromColumns = string[];
 export type ToColumns = string[];
 export type RelationshipType = "fk" | "lineage";
 export type Name2 = string | null;
-export type Label = string | null;
+export type Label1 = string | null;
 export type Cardinality = "n1" | "11" | "1n" | "nn" | "";
 export type Edges = ErdEdge[];
 export type GeneratedAt = string;
@@ -37,17 +39,19 @@ export interface ErdPayload {
 export interface ErdNode {
   id: Id;
   name: Name;
+  label?: Label;
+  description?: Description;
   resource_type: ResourceType;
   schema_name?: SchemaName;
   database?: Database;
   columns: Columns;
-  raw_sql_path?: RawSqlPath;
+  compiled_sql?: CompiledSql;
   [k: string]: unknown;
 }
 export interface Column {
   name: Name1;
   data_type?: DataType;
-  description?: Description;
+  description?: Description1;
   is_primary_key?: IsPrimaryKey;
   is_foreign_key?: IsForeignKey;
   [k: string]: unknown;
@@ -62,7 +66,7 @@ export interface ErdEdge {
   to_columns?: ToColumns;
   relationship_type?: RelationshipType;
   name?: Name2;
-  label?: Label;
+  label?: Label1;
   cardinality?: Cardinality;
   [k: string]: unknown;
 }

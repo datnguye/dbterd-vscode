@@ -1,5 +1,5 @@
 // A minimally-typed event bus. The webview panel publishes user actions
-// (refresh, reloadServer, openFile); the extension host subscribes and
+// (refresh, reloadServer, openCompiledSql); the extension host subscribes and
 // orchestrates side-effects (server.reload, vscode.workspace.openTextDocument,
 // etc). Avoids a circular callbacks-into-callbacks plumbing pattern.
 
@@ -8,7 +8,7 @@ type Listener<T> = (payload: T) => void;
 export interface PanelEvents {
   refresh: void;
   reloadServer: void;
-  openFile: string;
+  openCompiledSql: { name: string; sql: string };
   parseStarted: void;
   parseFinished: { ok: boolean };
 }

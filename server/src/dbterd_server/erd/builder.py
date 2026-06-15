@@ -12,10 +12,10 @@ from dbterd_server.erd.errors import (
     ProjectPathInvalidError,
     ProjectPathMissingError,
 )
-from dbterd_server.erd.mapping import map_ref, map_table
+from dbterd_server.erd.mapping import map_edge, map_node
 from dbterd_server.erd.postprocess import postprocess
 from dbterd_server.erd.timestamps import parse_generated_at
-from dbterd_server.schemas import ErdEdge, ErdMetadata, ErdPayload
+from dbterd_server.schemas import ErdMetadata, ErdPayload
 
 # Phase markers — surfaced verbatim in the extension's progress notification
 # (which tails this log file). dbterd itself is opaque between manifest read
@@ -54,7 +54,7 @@ def build_erd(project_path_str: str, cache: ErdCache) -> ErdResult:
     _logger.info("[parse] invoking dbterd (this can take a while on large projects)…")
     erd_json = invoke_dbterd(target_dir, catalog_missing, dbterd_config)
     _logger.info("[parse] building ERD payload from dbterd output")
-    result = _result_from_payload(erd_json, project_path, catalog_missing)
+    result = _result_from_payload(erd_json, catalog_missing)
     cache.set(project_path_str, cache_key, result)
     _logger.info(
         "[parse] done — %d nodes, %d edges", len(result.payload.nodes), len(result.payload.edges)
@@ -71,35 +71,27 @@ def _validate_project_path(project_path_str: str) -> Path:
     return project_path
 
 
-def _result_from_payload(erd_json: str, project_path: Path, catalog_missing: bool) -> ErdResult:
+def _result_from_payload(erd_json: str, catalog_missing: bool) -> ErdResult:
     payload_dict = json.loads(erd_json)
-    tables = payload_dict.get("tables") or []
-    refs = payload_dict.get("relationships") or []
+    raw_nodes = payload_dict.get("nodes") or []
+    raw_edges = payload_dict.get("edges") or []
     metadata = payload_dict.get("metadata") or {}
 
-    nodes = [map_table(t, project_path) for t in tables]
-    edges: list[ErdEdge] = []
-    for i, ref in enumerate(refs):
-        mapped = map_ref(ref, i)
-        if mapped is not None:
-            edges.append(mapped)
-    # Two fix-ups over a single shared node index:
-    #  1. Catalog coverage is often partial — a FK column named in a
-    #     relationships test may not be in the node's column list. Inject
-    #     synthetic entries so the webview can anchor edges to real column
-    #     handles instead of falling back to the table border.
-    #  2. dbterd's catalog-sourced columns never get is_foreign_key=True even
-    #     when they're on the child side of a ref. Flip the flag ourselves —
-    #     using the full column_map from the Ref, not just the edge's first
-    #     pair, so composite FKs mark every participating column.
-    postprocess(nodes, edges, refs)
+    nodes = [map_node(n) for n in raw_nodes]
+    # map_edge returns None for empty/misaligned column maps; drop those.
+    edges = [edge for raw_edge in raw_edges if (edge := map_edge(raw_edge)) is not None]
+    # Catalog coverage is often partial — an FK column named in a relationships
+    # test may not be in the node's column list. Inject synthetic entries so the
+    # webview can anchor edges to real column handles instead of falling back to
+    # the table border.
+    postprocess(nodes, edges)
 
     payload = ErdPayload(
         nodes=nodes,
         edges=edges,
         metadata=ErdMetadata(
             generated_at=parse_generated_at(metadata.get("generated_at")),
-            dbt_project_name=str(metadata.get("project_name") or ""),
+            dbt_project_name=str(metadata.get("dbt_project_name") or ""),
         ),
     )
     return ErdResult(payload=payload, catalog_missing=catalog_missing)

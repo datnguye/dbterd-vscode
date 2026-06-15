@@ -39,12 +39,16 @@ describe("SERVER_URL_PATTERN", () => {
 });
 
 describe("isInboundMessage", () => {
-  it("accepts openFile with a path", () => {
-    expect(isInboundMessage({ type: "openFile", path: "/tmp/x.sql" })).toBe(true);
+  it("accepts openCompiledSql with name and sql", () => {
+    expect(isInboundMessage({ type: "openCompiledSql", name: "orders", sql: "SELECT 1" })).toBe(true);
   });
 
-  it("rejects openFile without a path", () => {
-    expect(isInboundMessage({ type: "openFile" })).toBe(false);
+  it("rejects openCompiledSql without sql", () => {
+    expect(isInboundMessage({ type: "openCompiledSql", name: "orders" })).toBe(false);
+  });
+
+  it("rejects openCompiledSql without name", () => {
+    expect(isInboundMessage({ type: "openCompiledSql", sql: "SELECT 1" })).toBe(false);
   });
 
   it("accepts setTitle with a string title", () => {

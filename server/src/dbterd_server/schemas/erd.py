@@ -20,11 +20,15 @@ class Column(BaseModel):
 class ErdNode(BaseModel):
     id: str
     name: str
+    label: str | None = None
+    description: str | None = None
     resource_type: ResourceType
     schema_name: str | None = None
     database: str | None = None
     columns: list[Column]
-    raw_sql_path: str | None = None
+    # Full compiled SQL from dbterd's json target. The webview opens this in an
+    # untitled editor on double-click.
+    compiled_sql: str | None = None
 
 
 class ErdEdge(BaseModel):

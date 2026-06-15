@@ -2,9 +2,10 @@
 // host and the webview. Both sides import these types and validators so the
 // contract can't drift silently.
 //
-// CANONICAL: webview/src/messaging/protocol.ts mirrors this file verbatim.
-// If you change one, change the other. A future shared workspace package will
-// collapse the duplication.
+// CANONICAL: extension/src/messaging/protocol.ts is the source of truth.
+// webview/src/messaging/protocol.ts mirrors this file verbatim (modulo the
+// leading CANONICAL comment). If you change one, change the other. A future
+// shared workspace package will collapse the duplication.
 
 // Strict server URL pattern: http(s)://host[:port], no path/query/fragment.
 // Used for CSP allow-list matching as well — keep this pattern matchable.
@@ -16,7 +17,7 @@ export function isValidServerUrl(value: unknown): value is string {
 
 // Webview → Extension
 export type InboundMessage =
-  | { type: "openFile"; path: string }
+  | { type: "openCompiledSql"; name: string; sql: string }
   | { type: "refresh" }
   | { type: "reloadServer" }
   | { type: "setTitle"; title: string }
@@ -29,7 +30,7 @@ export type OutboundMessage = { type: "refresh"; serverUrl: string };
 export function isInboundMessage(msg: unknown): msg is InboundMessage {
   if (typeof msg !== "object" || msg === null) return false;
   const m = msg as Record<string, unknown>;
-  if (m.type === "openFile") return typeof m.path === "string";
+  if (m.type === "openCompiledSql") return typeof m.name === "string" && typeof m.sql === "string";
   if (m.type === "setTitle") return typeof m.title === "string";
   if (m.type === "parseFinished") return typeof m.ok === "boolean";
   return m.type === "refresh" || m.type === "reloadServer" || m.type === "parseStarted";

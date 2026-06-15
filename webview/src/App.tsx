@@ -217,9 +217,10 @@ export function App({ serverUrl: initialUrl }: AppProps): ReactElement {
 
   const onNodeDoubleClick = useCallback<NodeMouseHandler>((_event, node) => {
     const data = node.data as Record<string, unknown> | undefined;
-    const path = data?.raw_sql_path;
-    if (typeof path === "string" && path.length > 0) {
-      getVsCodeApi()?.postMessage({ type: "openFile", path });
+    const sql = data?.compiled_sql;
+    const name = data?.name;
+    if (typeof sql === "string" && sql.length > 0 && typeof name === "string") {
+      getVsCodeApi()?.postMessage({ type: "openCompiledSql", name, sql });
     }
   }, []);
 

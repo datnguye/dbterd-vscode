@@ -179,11 +179,11 @@ describe("App: filter & details integration", () => {
     setSampleNodes([
       {
         id: "model.demo.orders",
-        data: { name: "orders", resource_type: "model", columns: [], raw_sql_path: "models/orders.sql" },
+        data: { name: "orders", resource_type: "model", columns: [], compiled_sql: "SELECT * FROM orders" },
       },
       {
         id: "model.demo.customers",
-        data: { name: "customers", resource_type: "model", columns: [], raw_sql_path: "models/customers.sql" },
+        data: { name: "customers", resource_type: "model", columns: [], compiled_sql: "SELECT * FROM customers" },
       },
       {
         id: "source.demo.raw_orders",
@@ -291,7 +291,7 @@ describe("App: filter & details integration", () => {
     expect(screen.queryByLabelText(/Close details/i)).toBeNull();
   });
 
-  it("posts openFile on double-click for nodes with a raw_sql_path", async () => {
+  it("posts openCompiledSql on double-click for nodes with compiled_sql", async () => {
     fetchErdMock.mockResolvedValue(okPayload);
     const { App } = await import("@/App");
     render(<App serverUrl="http://localhost:1" />);
@@ -299,12 +299,13 @@ describe("App: filter & details integration", () => {
 
     fireEvent.doubleClick(screen.getByTestId("node-model.demo.orders"));
     expect(postMessageMock).toHaveBeenCalledWith({
-      type: "openFile",
-      path: "models/orders.sql",
+      type: "openCompiledSql",
+      name: "orders",
+      sql: "SELECT * FROM orders",
     });
   });
 
-  it("does not post openFile on double-click when raw_sql_path is missing", async () => {
+  it("does not post openCompiledSql on double-click when compiled_sql is missing", async () => {
     fetchErdMock.mockResolvedValue(okPayload);
     const { App } = await import("@/App");
     render(<App serverUrl="http://localhost:1" />);
@@ -313,7 +314,7 @@ describe("App: filter & details integration", () => {
     postMessageMock.mockClear();
     fireEvent.doubleClick(screen.getByTestId("node-source.demo.raw_orders"));
     expect(postMessageMock).not.toHaveBeenCalledWith(
-      expect.objectContaining({ type: "openFile" }),
+      expect.objectContaining({ type: "openCompiledSql" }),
     );
   });
 });
