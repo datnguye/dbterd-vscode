@@ -14,6 +14,7 @@ export type IsPrimaryKey = boolean;
 export type IsForeignKey = boolean;
 export type Columns = Column[];
 export type CompiledSql = string | null;
+export type ModelPath = string | null;
 export type Nodes = ErdNode[];
 export type Id1 = string;
 export type FromId = string;
@@ -29,7 +30,22 @@ export type Cardinality = "n1" | "11" | "1n" | "nn" | "";
 export type Edges = ErdEdge[];
 export type GeneratedAt = string;
 export type DbtProjectName = string;
+export type Phase =
+  | "validating"
+  | "configuring"
+  | "invoking"
+  | "mapping_nodes"
+  | "mapping_edges"
+  | "postprocessing"
+  | "done";
+export type Percent = number;
+export type Message = string;
 
+export interface _Contract {
+  payload: ErdPayload;
+  progress: ErdProgress;
+  [k: string]: unknown;
+}
 export interface ErdPayload {
   nodes: Nodes;
   edges: Edges;
@@ -46,6 +62,7 @@ export interface ErdNode {
   database?: Database;
   columns: Columns;
   compiled_sql?: CompiledSql;
+  model_path?: ModelPath;
   [k: string]: unknown;
 }
 export interface Column {
@@ -73,5 +90,11 @@ export interface ErdEdge {
 export interface ErdMetadata {
   generated_at: GeneratedAt;
   dbt_project_name: DbtProjectName;
+  [k: string]: unknown;
+}
+export interface ErdProgress {
+  phase: Phase;
+  percent: Percent;
+  message: Message;
   [k: string]: unknown;
 }

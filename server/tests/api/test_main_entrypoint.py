@@ -98,8 +98,10 @@ def test_codegen_dumps_json_schema_to_stdout() -> None:
     output = buf.getvalue()
     assert output.endswith("\n")
     schema = json.loads(output)
-    assert schema["title"] == "ErdPayload"
-    assert set(schema["properties"]) == {"nodes", "edges", "metadata"}
+    # The synthetic root references every exported contract model so they all
+    # land in a shared $defs block (one TS interface per def downstream).
+    assert set(schema["properties"]) == {"payload", "progress"}
+    assert {"ErdPayload", "ErdProgress"} <= set(schema["$defs"])
 
 
 def test_version_is_resolved_from_package_metadata() -> None:

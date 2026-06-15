@@ -5,6 +5,8 @@ from dbterd_server.schemas.erd import (
     ErdMetadata,
     ErdNode,
     ErdPayload,
+    ErdProgress,
+    ProgressPhase,
     RelationshipType,
     ResourceType,
 )
@@ -18,9 +20,11 @@ __all__ = [
     "ErdMetadata",
     "ErdNode",
     "ErdPayload",
+    "ErdProgress",
     "ErrorCode",
     "ErrorResponse",
     "HealthStatus",
+    "ProgressPhase",
     "RelationshipType",
     "ResourceType",
 ]

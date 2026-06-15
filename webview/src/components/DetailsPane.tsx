@@ -1,7 +1,7 @@
 import { memo, useCallback, useEffect, type ReactElement } from "react";
 import type { ErdNode } from "../types/erd";
 import { getVsCodeApi } from "../vscode";
-import { CloseIcon, DatabaseIcon, FileCodeIcon, TableIcon } from "./icons";
+import { CloseIcon, DatabaseIcon, FileCodeIcon, FileIcon, TableIcon } from "./icons";
 import "./DetailsPane.css";
 
 interface DetailsPaneProps {
@@ -13,6 +13,24 @@ function pkOrFkBadge(col: { is_primary_key?: boolean; is_foreign_key?: boolean }
   if (col.is_primary_key) return "PK";
   if (col.is_foreign_key) return "FK";
   return "";
+}
+
+interface OpenActionProps {
+  icon: ReactElement;
+  label: string;
+  title: string;
+  onClick: () => void;
+}
+
+// One button in the details-pane action row. Adding an action (open lineage,
+// copy id, …) is one more <OpenAction> in the row, not a new bespoke <button>.
+function OpenAction({ icon, label, title, onClick }: OpenActionProps): ReactElement {
+  return (
+    <button type="button" className="erd-details-open-file" onClick={onClick} title={title}>
+      {icon}
+      <span>{label}</span>
+    </button>
+  );
 }
 
 export const DetailsPane = memo(function DetailsPane({
@@ -31,6 +49,12 @@ export const DetailsPane = memo(function DetailsPane({
     window.addEventListener("keydown", onKey, { capture: true });
     return () => window.removeEventListener("keydown", onKey, { capture: true });
   }, [onClose]);
+
+  const modelPath = node.model_path;
+  const openModelFile = useCallback((): void => {
+    if (!modelPath) return;
+    getVsCodeApi()?.postMessage({ type: "openFile", path: modelPath });
+  }, [modelPath]);
 
   const compiledSql = node.compiled_sql;
   const openCompiledSql = useCallback((): void => {
@@ -87,16 +111,25 @@ export const DetailsPane = memo(function DetailsPane({
         </div>
       </dl>
 
-      {compiledSql ? (
-        <button
-          type="button"
-          className="erd-details-open-file"
-          onClick={openCompiledSql}
-          title="Open compiled SQL in editor"
-        >
-          <FileCodeIcon size={14} />
-          <span>Open compiled SQL</span>
-        </button>
+      {modelPath || compiledSql ? (
+        <div className="erd-details-actions">
+          {modelPath ? (
+            <OpenAction
+              icon={<FileIcon size={14} />}
+              label="Open model file"
+              title={modelPath}
+              onClick={openModelFile}
+            />
+          ) : null}
+          {compiledSql ? (
+            <OpenAction
+              icon={<FileCodeIcon size={14} />}
+              label="Open compiled SQL"
+              title="Open compiled SQL in editor"
+              onClick={openCompiledSql}
+            />
+          ) : null}
+        </div>
       ) : null}
 
       <section className="erd-details-section">

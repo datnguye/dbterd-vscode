@@ -1,0 +1,46 @@
+.erd-progress-container {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 320px;
+  max-width: 80vw;
+}
+
+.erd-progress-bar {
+  position: relative;
+  height: 6px;
+  background: var(--vscode-widget-border, #3c3c3c);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.erd-progress-fill {
+  height: 100%;
+  background: var(--vscode-progressBar-background, #007acc);
+  border-radius: 3px;
+  transition: width 0.15s ease-out;
+}
+
+.erd-progress-meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+
+.erd-progress-message {
+  font-family: var(--vscode-font-family, sans-serif);
+  font-size: 12px;
+  color: var(--vscode-descriptionForeground, #a6a6a6);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+
+.erd-progress-percent {
+  font-family: var(--vscode-editor-font-family, monospace);
+  font-size: 11px;
+  color: var(--vscode-foreground, #d4d4d4);
+  flex-shrink: 0;
+}

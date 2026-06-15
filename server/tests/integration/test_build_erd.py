@@ -101,11 +101,24 @@ def test_customers_compiled_sql_contains_select(fixture_project: Path, cache: Er
     assert "select" in customers.compiled_sql.lower()
 
 
-def test_model_nodes_have_no_raw_sql_path_attribute(fixture_project: Path, cache: ErdCache) -> None:
+def test_model_nodes_have_model_path_set(fixture_project: Path, cache: ErdCache) -> None:
     result = builder.build_erd(str(fixture_project), cache)
-    for node in result.payload.nodes:
-        assert not hasattr(node, "raw_sql_path"), (
-            f"ErdNode should not have raw_sql_path; found on {node.name}"
+    models = [n for n in result.payload.nodes if n.resource_type == "model"]
+    assert models, "expected at least one model node in the fixture"
+    for model in models:
+        assert model.model_path is not None, f"{model.name} missing model_path"
+        assert model.model_path.endswith(".sql"), f"{model.name} model_path not a .sql file"
+        assert Path(model.model_path).is_absolute(), f"{model.name} model_path not absolute"
+
+
+def test_model_nodes_model_path_file_exists(fixture_project: Path, cache: ErdCache) -> None:
+    result = builder.build_erd(str(fixture_project), cache)
+    models = [n for n in result.payload.nodes if n.resource_type == "model"]
+    assert models, "expected at least one model node in the fixture"
+    for model in models:
+        assert model.model_path is not None
+        assert Path(model.model_path).is_file(), (
+            f"{model.name}.model_path={model.model_path!r} does not exist on disk"
         )
 
 

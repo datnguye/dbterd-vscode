@@ -63,10 +63,12 @@ vi.mock("@xyflow/react", () => ({
 vi.mock("@/components/edgeTypes", () => ({ edgeTypes: {} }));
 vi.mock("@/components/nodeTypes", () => ({ nodeTypes: {} }));
 
-const fetchErdMock = vi.fn();
+// Mock streamErd; keep fetchErd and errors as real implementations so
+// ErdApiError instanceof checks still work.
+const streamErdMock = vi.fn();
 vi.mock("@/api", async () => {
   const actual = await vi.importActual<typeof import("@/api")>("@/api");
-  return { ...actual, fetchErd: fetchErdMock };
+  return { ...actual, streamErd: streamErdMock };
 });
 
 const postMessageMock = vi.fn();
@@ -81,7 +83,7 @@ const okPayload = {
 };
 
 beforeEach(() => {
-  fetchErdMock.mockReset();
+  streamErdMock.mockReset();
   postMessageMock.mockReset();
   setSampleNodes([]);
 });
@@ -92,7 +94,7 @@ afterEach(() => {
 
 describe("App", () => {
   it("posts setTitle with the project name on success", async () => {
-    fetchErdMock.mockResolvedValue(okPayload);
+    streamErdMock.mockResolvedValue(okPayload);
     const { App } = await import("@/App");
     render(<App serverUrl="http://localhost:1" />);
     await waitFor(() => {
@@ -101,7 +103,7 @@ describe("App", () => {
   });
 
   it("falls back to a generic title when project name is empty", async () => {
-    fetchErdMock.mockResolvedValue({ ...okPayload, metadata: { ...okPayload.metadata, dbt_project_name: "" } });
+    streamErdMock.mockResolvedValue({ ...okPayload, metadata: { ...okPayload.metadata, dbt_project_name: "" } });
     const { App } = await import("@/App");
     render(<App serverUrl="http://localhost:1" />);
     await waitFor(() => {
@@ -111,7 +113,7 @@ describe("App", () => {
 
   it("renders a remediation hint for typed API errors", async () => {
     const { ErdApiError } = await import("@/api");
-    fetchErdMock.mockRejectedValue(
+    streamErdMock.mockRejectedValue(
       new ErdApiError("manifest_missing", "manifest.json not found", 404),
     );
     const { App } = await import("@/App");
@@ -123,7 +125,7 @@ describe("App", () => {
   });
 
   it("renders generic error message for non-API errors", async () => {
-    fetchErdMock.mockRejectedValue(new Error("network down"));
+    streamErdMock.mockRejectedValue(new Error("network down"));
     const { App } = await import("@/App");
     render(<App serverUrl="http://localhost:1" />);
     await waitFor(() => {
@@ -132,40 +134,42 @@ describe("App", () => {
   });
 
   it("re-fetches when an outbound refresh message arrives", async () => {
-    fetchErdMock.mockResolvedValue(okPayload);
+    streamErdMock.mockResolvedValue(okPayload);
     const { App } = await import("@/App");
     render(<App serverUrl="http://localhost:1" />);
-    await waitFor(() => expect(fetchErdMock).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(streamErdMock).toHaveBeenCalledTimes(1));
 
     window.postMessage({ type: "refresh", serverUrl: "http://localhost:2" }, "*");
-    await waitFor(() => expect(fetchErdMock).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(streamErdMock).toHaveBeenCalledTimes(2));
     // Second call uses the new URL.
-    expect(fetchErdMock.mock.calls[1][0]).toBe("http://localhost:2");
+    expect(streamErdMock.mock.calls[1][0]).toBe("http://localhost:2");
   });
 
   it("ignores refresh messages with unsafe URLs", async () => {
-    fetchErdMock.mockResolvedValue(okPayload);
+    streamErdMock.mockResolvedValue(okPayload);
     const { App } = await import("@/App");
     render(<App serverUrl="http://localhost:1" />);
-    await waitFor(() => expect(fetchErdMock).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(streamErdMock).toHaveBeenCalledTimes(1));
 
     window.postMessage({ type: "refresh", serverUrl: "javascript:alert(1)" }, "*");
     // Give it a tick — should not trigger a second fetch.
     await new Promise((r) => setTimeout(r, 50));
-    expect(fetchErdMock).toHaveBeenCalledTimes(1);
+    expect(streamErdMock).toHaveBeenCalledTimes(1);
   });
 
-  it("shows the loading state initially", async () => {
+  it("shows the progress bar in the loading state initially", async () => {
     let resolve: (v: unknown) => void = () => undefined;
-    fetchErdMock.mockReturnValue(new Promise((r) => (resolve = r)));
+    streamErdMock.mockReturnValue(new Promise((r) => (resolve = r)));
     const { App } = await import("@/App");
     render(<App serverUrl="http://localhost:1" />);
-    expect(screen.getByText(/Loading ERD/)).toBeTruthy();
+    // Progress bar with 0% / "Starting…" default renders while loading.
+    expect(screen.getByRole("progressbar")).toBeTruthy();
+    expect(screen.getByText("Starting…")).toBeTruthy();
     resolve(okPayload);
   });
 
   it("renders the minimap once data has loaded", async () => {
-    fetchErdMock.mockResolvedValue(okPayload);
+    streamErdMock.mockResolvedValue(okPayload);
     const { App } = await import("@/App");
     render(<App serverUrl="http://localhost:1" />);
     await waitFor(() => expect(screen.getByTestId("minimap")).toBeTruthy());
@@ -179,7 +183,13 @@ describe("App: filter & details integration", () => {
     setSampleNodes([
       {
         id: "model.demo.orders",
-        data: { name: "orders", resource_type: "model", columns: [], compiled_sql: "SELECT * FROM orders" },
+        data: {
+          name: "orders",
+          resource_type: "model",
+          columns: [],
+          compiled_sql: "SELECT * FROM orders",
+          model_path: "/workspace/models/orders.sql",
+        },
       },
       {
         id: "model.demo.customers",
@@ -193,10 +203,10 @@ describe("App: filter & details integration", () => {
   });
 
   it("highlights matches and drops nodes disconnected from the matched set", async () => {
-    fetchErdMock.mockResolvedValue(okPayload);
+    streamErdMock.mockResolvedValue(okPayload);
     const { App } = await import("@/App");
     render(<App serverUrl="http://localhost:1" />);
-    await waitFor(() => expect(fetchErdMock).toHaveBeenCalled());
+    await waitFor(() => expect(streamErdMock).toHaveBeenCalled());
 
     const input = screen.getByLabelText(/Filter entities by name/i);
     fireEvent.change(input, { target: { value: "order" } });
@@ -223,10 +233,10 @@ describe("App: filter & details integration", () => {
       source: "model.demo.customers",
       target: "model.demo.orders",
     });
-    fetchErdMock.mockResolvedValue(okPayload);
+    streamErdMock.mockResolvedValue(okPayload);
     const { App } = await import("@/App");
     render(<App serverUrl="http://localhost:1" />);
-    await waitFor(() => expect(fetchErdMock).toHaveBeenCalled());
+    await waitFor(() => expect(streamErdMock).toHaveBeenCalled());
 
     const input = screen.getByLabelText(/Filter entities by name/i);
     fireEvent.change(input, { target: { value: "order" } });
@@ -241,10 +251,10 @@ describe("App: filter & details integration", () => {
   });
 
   it("clears all dim/match decorations when the filter is emptied", async () => {
-    fetchErdMock.mockResolvedValue(okPayload);
+    streamErdMock.mockResolvedValue(okPayload);
     const { App } = await import("@/App");
     render(<App serverUrl="http://localhost:1" />);
-    await waitFor(() => expect(fetchErdMock).toHaveBeenCalled());
+    await waitFor(() => expect(streamErdMock).toHaveBeenCalled());
 
     const input = screen.getByLabelText(/Filter entities by name/i);
     fireEvent.change(input, { target: { value: "order" } });
@@ -261,10 +271,10 @@ describe("App: filter & details integration", () => {
   });
 
   it("opens the details pane on header click and closes on pane click", async () => {
-    fetchErdMock.mockResolvedValue(okPayload);
+    streamErdMock.mockResolvedValue(okPayload);
     const { App } = await import("@/App");
     render(<App serverUrl="http://localhost:1" />);
-    await waitFor(() => expect(fetchErdMock).toHaveBeenCalled());
+    await waitFor(() => expect(streamErdMock).toHaveBeenCalled());
 
     fireEvent.click(screen.getByTestId("node-header-model.demo.orders"));
     await waitFor(() => {
@@ -281,40 +291,40 @@ describe("App: filter & details integration", () => {
   });
 
   it("does not open the details pane on clicks outside the header", async () => {
-    fetchErdMock.mockResolvedValue(okPayload);
+    streamErdMock.mockResolvedValue(okPayload);
     const { App } = await import("@/App");
     render(<App serverUrl="http://localhost:1" />);
-    await waitFor(() => expect(fetchErdMock).toHaveBeenCalled());
+    await waitFor(() => expect(streamErdMock).toHaveBeenCalled());
 
     fireEvent.click(screen.getByTestId("node-body-model.demo.orders"));
     // No details pane — body clicks shouldn't hijack selection.
     expect(screen.queryByLabelText(/Close details/i)).toBeNull();
   });
 
-  it("posts openCompiledSql on double-click for nodes with compiled_sql", async () => {
-    fetchErdMock.mockResolvedValue(okPayload);
+  it("posts openFile on double-click for nodes with model_path", async () => {
+    streamErdMock.mockResolvedValue(okPayload);
     const { App } = await import("@/App");
     render(<App serverUrl="http://localhost:1" />);
-    await waitFor(() => expect(fetchErdMock).toHaveBeenCalled());
+    await waitFor(() => expect(streamErdMock).toHaveBeenCalled());
 
     fireEvent.doubleClick(screen.getByTestId("node-model.demo.orders"));
     expect(postMessageMock).toHaveBeenCalledWith({
-      type: "openCompiledSql",
-      name: "orders",
-      sql: "SELECT * FROM orders",
+      type: "openFile",
+      path: "/workspace/models/orders.sql",
     });
   });
 
-  it("does not post openCompiledSql on double-click when compiled_sql is missing", async () => {
-    fetchErdMock.mockResolvedValue(okPayload);
+  it("does not post openFile on double-click when model_path is absent", async () => {
+    streamErdMock.mockResolvedValue(okPayload);
     const { App } = await import("@/App");
     render(<App serverUrl="http://localhost:1" />);
-    await waitFor(() => expect(fetchErdMock).toHaveBeenCalled());
+    await waitFor(() => expect(streamErdMock).toHaveBeenCalled());
 
     postMessageMock.mockClear();
+    // raw_orders has no model_path — double-click should be a no-op.
     fireEvent.doubleClick(screen.getByTestId("node-source.demo.raw_orders"));
     expect(postMessageMock).not.toHaveBeenCalledWith(
-      expect.objectContaining({ type: "openCompiledSql" }),
+      expect.objectContaining({ type: "openFile" }),
     );
   });
 });

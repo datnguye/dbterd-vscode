@@ -9,10 +9,11 @@ import {
   type Edge,
   type NodeMouseHandler,
 } from "@xyflow/react";
-import { ErdApiError, fetchErd, remediationHint, type ErdErrorCode } from "./api";
+import { ErdApiError, remediationHint, streamErd, type ErdErrorCode } from "./api";
 import { DetailsPane } from "./components/DetailsPane";
 import { edgeTypes } from "./components/edgeTypes";
 import { nodeTypes } from "./components/nodeTypes";
+import { ParseProgressBar } from "./components/ParseProgressBar";
 import { Toolbar } from "./components/Toolbar";
 import { toFlowGraph } from "./layout";
 import { isOutboundMessage } from "./messaging/protocol";
@@ -29,6 +30,11 @@ type LoadState = "idle" | "loading" | "ready" | "error";
 interface ErrorState {
   message: string;
   code?: ErdErrorCode;
+}
+
+interface ProgressState {
+  percent: number;
+  message: string;
 }
 
 function normalize(value: string): string {
@@ -52,6 +58,7 @@ export function App({ serverUrl: initialUrl }: AppProps): ReactElement {
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
   const [status, setStatus] = useState<LoadState>("idle");
   const [error, setError] = useState<ErrorState | undefined>();
+  const [progress, setProgress] = useState<ProgressState | null>(null);
   const [filter, setFilter] = useState("");
   const [activeNodeId, setActiveNodeId] = useState<string | undefined>();
   // Monotonically increasing nonce to force re-fetch on `dbterd.refresh`,
@@ -63,6 +70,7 @@ export function App({ serverUrl: initialUrl }: AppProps): ReactElement {
     async (url: string, signal: AbortSignal): Promise<void> => {
       setStatus("loading");
       setError(undefined);
+      setProgress(null);
       const vscodeApi = getVsCodeApi();
       // Notify the extension so it can show a progress notification with a
       // "Show Logs" action — useful for big dbt projects where dbterd runs
@@ -70,12 +78,18 @@ export function App({ serverUrl: initialUrl }: AppProps): ReactElement {
       vscodeApi?.postMessage({ type: "parseStarted" });
       let ok = false;
       try {
-        const payload = await fetchErd(url, signal);
+        const payload = await streamErd(url, {
+          signal,
+          onProgress: ({ percent, message }) => {
+            setProgress({ percent, message });
+          },
+        });
         if (signal.aborted) return;
         const flow = toFlowGraph(payload);
         setNodes(flow.nodes);
         setEdges(flow.edges);
         setStatus("ready");
+        setProgress(null);
         const projectName = payload.metadata?.dbt_project_name;
         const title = projectName ? `ERD of ${projectName}` : "dbt ERD";
         vscodeApi?.postMessage({ type: "setTitle", title });
@@ -217,10 +231,9 @@ export function App({ serverUrl: initialUrl }: AppProps): ReactElement {
 
   const onNodeDoubleClick = useCallback<NodeMouseHandler>((_event, node) => {
     const data = node.data as Record<string, unknown> | undefined;
-    const sql = data?.compiled_sql;
-    const name = data?.name;
-    if (typeof sql === "string" && sql.length > 0 && typeof name === "string") {
-      getVsCodeApi()?.postMessage({ type: "openCompiledSql", name, sql });
+    const path = data?.model_path;
+    if (typeof path === "string" && path.length > 0) {
+      getVsCodeApi()?.postMessage({ type: "openFile", path });
     }
   }, []);
 
@@ -242,7 +255,13 @@ export function App({ serverUrl: initialUrl }: AppProps): ReactElement {
     );
   }
   if (status === "loading" && nodes.length === 0) {
-    return <div className="status">Loading ERD…</div>;
+    const pct = progress?.percent ?? 0;
+    const msg = progress?.message ?? "Starting…";
+    return (
+      <div className="status">
+        <ParseProgressBar percent={pct} message={msg} />
+      </div>
+    );
   }
 
   return (

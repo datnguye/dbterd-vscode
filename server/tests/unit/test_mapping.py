@@ -1,3 +1,5 @@
+from pathlib import Path
+
 import pytest
 
 from dbterd_server.erd import mapping
@@ -17,6 +19,12 @@ def _node_dict(**kw) -> dict:  # type: ignore[type-arg]
     }
     base.update(kw)
     return base
+
+
+# Sentinel values reused across map_node tests — keeps the DRY in place for the
+# new required parameters while staying transparent about what they represent.
+_NO_PATH_LOOKUP: dict[str, str] = {}
+_DUMMY_PROJECT = Path("/tmp/proj")
 
 
 def _edge_dict(**kw) -> dict:  # type: ignore[type-arg]
@@ -40,6 +48,20 @@ def _edge_dict(**kw) -> dict:  # type: ignore[type-arg]
 # ---------------------------------------------------------------------------
 
 
+def _map_node(
+    node_kw: dict | None = None,
+    *,
+    project_path: Path = _DUMMY_PROJECT,
+    original_file_paths: dict[str, str] = _NO_PATH_LOOKUP,
+) -> mapping.ErdNode:  # type: ignore[type-arg]
+    """Thin helper to call map_node without repeating the two new params in every test."""
+    return mapping.map_node(
+        _node_dict(**(node_kw or {})),
+        project_path,
+        original_file_paths,
+    )
+
+
 def test_map_node_maps_all_fields() -> None:
     node = mapping.map_node(
         _node_dict(
@@ -60,7 +82,9 @@ def test_map_node_maps_all_fields() -> None:
                     "is_foreign_key": False,
                 }
             ],
-        )
+        ),
+        _DUMMY_PROJECT,
+        _NO_PATH_LOOKUP,
     )
     assert node.id == "model.proj.orders"
     assert node.name == "model.proj.orders"
@@ -80,29 +104,25 @@ def test_map_node_maps_all_fields() -> None:
 
 
 def test_map_node_empty_columns_list() -> None:
-    node = mapping.map_node(_node_dict(columns=[]))
+    node = _map_node({"columns": []})
     assert node.columns == []
 
 
 def test_map_node_none_columns_treated_as_empty() -> None:
-    node = mapping.map_node(_node_dict(columns=None))
+    node = _map_node({"columns": None})
     assert node.columns == []
 
 
 def test_map_node_empty_string_optional_fields_become_none() -> None:
-    node = mapping.map_node(_node_dict(label="", description="", compiled_sql=""))
+    node = _map_node({"label": "", "description": "", "compiled_sql": ""})
     assert node.label is None
     assert node.description is None
     assert node.compiled_sql is None
 
 
 def test_map_node_fk_flag_passthrough() -> None:
-    node = mapping.map_node(
-        _node_dict(
-            columns=[
-                {"name": "order_id", "is_primary_key": False, "is_foreign_key": True},
-            ]
-        )
+    node = _map_node(
+        {"columns": [{"name": "order_id", "is_primary_key": False, "is_foreign_key": True}]}
     )
     assert node.columns[0].is_foreign_key is True
 
@@ -112,7 +132,7 @@ def test_map_node_fk_flag_passthrough() -> None:
     ["model", "source", "seed", "snapshot"],
 )
 def test_map_node_known_resource_types_pass_through(resource_type: str) -> None:
-    node = mapping.map_node(_node_dict(resource_type=resource_type))
+    node = _map_node({"resource_type": resource_type})
     assert node.resource_type == resource_type
 
 
@@ -121,8 +141,54 @@ def test_map_node_known_resource_types_pass_through(resource_type: str) -> None:
     ["unknown", None, "", "exposure", "metric"],
 )
 def test_map_node_unknown_resource_type_coerces_to_model(bad_type: object) -> None:
-    node = mapping.map_node(_node_dict(resource_type=bad_type))
+    node = _map_node({"resource_type": bad_type})
     assert node.resource_type == "model"
+
+
+# ---------------------------------------------------------------------------
+# resolve_model_path
+# ---------------------------------------------------------------------------
+
+
+def test_resolve_model_path_returns_absolute_path_for_model(tmp_path: Path) -> None:
+    sql_file = tmp_path / "models" / "orders.sql"
+    sql_file.parent.mkdir(parents=True)
+    sql_file.write_text("select 1")
+    paths = {"model.proj.orders": "models/orders.sql"}
+    result = mapping.resolve_model_path("model.proj.orders", "model", tmp_path, paths)
+    assert result == str(sql_file.resolve())
+
+
+def test_resolve_model_path_returns_none_for_non_model(tmp_path: Path) -> None:
+    sql_file = tmp_path / "models" / "orders.sql"
+    sql_file.parent.mkdir(parents=True)
+    sql_file.write_text("select 1")
+    paths = {"source.proj.orders": "models/orders.sql"}
+    for rtype in ("source", "seed", "snapshot"):
+        assert mapping.resolve_model_path("source.proj.orders", rtype, tmp_path, paths) is None
+
+
+def test_resolve_model_path_returns_none_when_id_missing_from_index(tmp_path: Path) -> None:
+    assert mapping.resolve_model_path("model.proj.orders", "model", tmp_path, {}) is None
+
+
+def test_resolve_model_path_returns_none_when_file_does_not_exist(tmp_path: Path) -> None:
+    paths = {"model.proj.orders": "models/orders.sql"}
+    assert mapping.resolve_model_path("model.proj.orders", "model", tmp_path, paths) is None
+
+
+def test_map_node_model_path_set_when_file_exists(tmp_path: Path) -> None:
+    sql_file = tmp_path / "models" / "orders.sql"
+    sql_file.parent.mkdir(parents=True)
+    sql_file.write_text("select 1")
+    paths = {"model.proj.orders": "models/orders.sql"}
+    node = mapping.map_node(_node_dict(), tmp_path, paths)
+    assert node.model_path == str(sql_file.resolve())
+
+
+def test_map_node_model_path_none_when_not_in_index() -> None:
+    node = _map_node()
+    assert node.model_path is None
 
 
 # ---------------------------------------------------------------------------

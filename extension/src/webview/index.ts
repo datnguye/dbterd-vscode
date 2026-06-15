@@ -71,6 +71,10 @@ export class ErdPanel {
 
   private async handleMessage(msg: unknown): Promise<void> {
     if (!isInboundMessage(msg)) return;
+    if (msg.type === "openFile") {
+      this.bus.emit("openFile", { path: msg.path });
+      return;
+    }
     if (msg.type === "openCompiledSql") {
       this.bus.emit("openCompiledSql", { name: msg.name, sql: msg.sql });
       return;

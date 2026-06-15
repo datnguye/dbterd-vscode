@@ -9,6 +9,7 @@ logic relies on.
 """
 
 import logging
+from pathlib import Path
 from typing import Any
 
 from dbterd_server.erd.coerce import coerce_literal
@@ -30,7 +31,34 @@ _RELATIONSHIP_TYPES: frozenset[RelationshipType] = frozenset(("fk", "lineage"))
 _CARDINALITIES: frozenset[Cardinality] = frozenset(("n1", "11", "1n", "nn", ""))
 
 
-def map_node(node: dict[str, Any]) -> ErdNode:
+def resolve_model_path(
+    node_id: str,
+    resource_type: str,
+    project_path: Path,
+    original_file_paths: dict[str, str],
+) -> str | None:
+    """Return the absolute path to a model's source .sql file, or None.
+
+    Only models carry a meaningful source file path. For non-models (sources,
+    seeds, snapshots) this returns None immediately. For models, we look up the
+    relative path from the manifest-derived ``original_file_paths`` index, join
+    it to ``project_path``, resolve it, and confirm the file exists on disk.
+    An unresolvable or non-existent path also returns None.
+    """
+    if resource_type != "model":
+        return None
+    relative = original_file_paths.get(node_id)
+    if not relative:
+        return None
+    candidate = (project_path / relative).resolve()
+    return str(candidate) if candidate.is_file() else None
+
+
+def map_node(
+    node: dict[str, Any],
+    project_path: Path,
+    original_file_paths: dict[str, str],
+) -> ErdNode:
     columns = [
         Column(
             name=col["name"],
@@ -41,18 +69,21 @@ def map_node(node: dict[str, Any]) -> ErdNode:
         )
         for col in (node.get("columns") or [])
     ]
+    node_id = node["id"]
+    resource_type = coerce_literal(
+        node.get("resource_type"), _RESOURCE_TYPES, "model", field="resource_type"
+    )
     return ErdNode(
-        id=node["id"],
+        id=node_id,
         name=node["name"],
         label=node.get("label") or None,
         description=node.get("description") or None,
-        resource_type=coerce_literal(
-            node.get("resource_type"), _RESOURCE_TYPES, "model", field="resource_type"
-        ),
+        resource_type=resource_type,
         schema_name=node.get("schema_name") or None,
         database=node.get("database") or None,
         columns=columns,
         compiled_sql=node.get("compiled_sql") or None,
+        model_path=resolve_model_path(node_id, resource_type, project_path, original_file_paths),
     )
 
 

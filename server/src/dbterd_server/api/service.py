@@ -1,6 +1,6 @@
 """ErdService — wraps cache + builder so routes don't reach into app.state."""
 
-from dbterd_server.erd.builder import build_erd
+from dbterd_server.erd.builder import OnProgress, build_erd
 from dbterd_server.erd.cache import ErdCache, ErdResult
 
 
@@ -36,6 +36,9 @@ class ErdService:
 
     def build(self, project_path: str) -> ErdResult:
         return build_erd(project_path, self._cache)
+
+    def build_with_progress(self, project_path: str, on_progress: OnProgress) -> ErdResult:
+        return build_erd(project_path, self._cache, on_progress=on_progress)
 
     def clear_cache(self) -> None:
         self._cache.clear()

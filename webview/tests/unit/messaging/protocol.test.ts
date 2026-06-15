@@ -39,6 +39,18 @@ describe("SERVER_URL_PATTERN", () => {
 });
 
 describe("isInboundMessage", () => {
+  it("accepts openFile with a string path", () => {
+    expect(isInboundMessage({ type: "openFile", path: "/models/orders.sql" })).toBe(true);
+  });
+
+  it("rejects openFile when path is not a string", () => {
+    expect(isInboundMessage({ type: "openFile", path: 42 })).toBe(false);
+  });
+
+  it("rejects openFile when path is missing", () => {
+    expect(isInboundMessage({ type: "openFile" })).toBe(false);
+  });
+
   it("accepts openCompiledSql with name and sql", () => {
     expect(isInboundMessage({ type: "openCompiledSql", name: "orders", sql: "SELECT 1" })).toBe(true);
   });

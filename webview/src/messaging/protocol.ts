@@ -17,6 +17,7 @@ export function isValidServerUrl(value: unknown): value is string {
 
 // Webview → Extension
 export type InboundMessage =
+  | { type: "openFile"; path: string }
   | { type: "openCompiledSql"; name: string; sql: string }
   | { type: "refresh" }
   | { type: "reloadServer" }
@@ -30,6 +31,7 @@ export type OutboundMessage = { type: "refresh"; serverUrl: string };
 export function isInboundMessage(msg: unknown): msg is InboundMessage {
   if (typeof msg !== "object" || msg === null) return false;
   const m = msg as Record<string, unknown>;
+  if (m.type === "openFile") return typeof m.path === "string";
   if (m.type === "openCompiledSql") return typeof m.name === "string" && typeof m.sql === "string";
   if (m.type === "setTitle") return typeof m.title === "string";
   if (m.type === "parseFinished") return typeof m.ok === "boolean";

@@ -24,14 +24,15 @@ symbol — the pattern is the point, not the exact line.
     - [8. LRU Cache](#8-lru-cache)
     - [9. Registration helpers](#9-registration-helpers)
     - [10. Graceful literal coercion (one helper, many domains)](#10-graceful-literal-coercion-one-helper-many-domains)
+    - [11. Progress callback + SSE bridge (sync build, async stream)](#11-progress-callback--sse-bridge-sync-build-async-stream)
   - [Extension (TypeScript / VS Code host)](#extension-typescript--vs-code-host)
-    - [11. Observer (typed event bus)](#11-observer-typed-event-bus)
-    - [12. Disposable](#12-disposable)
-    - [13. Per-view Singleton](#13-per-view-singleton)
+    - [12. Observer (typed event bus)](#12-observer-typed-event-bus)
+    - [13. Disposable](#13-disposable)
+    - [14. Per-view Singleton](#14-per-view-singleton)
   - [Webview (React / @xyflow/react)](#webview-react--xyflowreact)
-    - [14. Strategy registry (node/edge types)](#14-strategy-registry-nodeedge-types)
-    - [15. Custom typed error + classifier](#15-custom-typed-error--classifier)
-    - [16. Memoized derivation](#16-memoized-derivation)
+    - [15. Strategy registry (node/edge types)](#15-strategy-registry-nodeedge-types)
+    - [16. Custom typed error + classifier](#16-custom-typed-error--classifier)
+    - [17. Memoized derivation](#17-memoized-derivation)
   - [Cross-cutting](#cross-cutting)
 
 ---
@@ -125,11 +126,32 @@ pair, not a bespoke `_resolve_*` function per domain.
 - `server/src/dbterd_server/erd/coerce.py` — `coerce_literal(...)`, the one membership-test-with-fallback used by every degradable field.
 - `server/src/dbterd_server/erd/mapping.py:28-30` — the `_RESOURCE_TYPES` / `_RELATIONSHIP_TYPES` / `_CARDINALITIES` domain sets, each fed to `coerce_literal` at its mapping site.
 
+### 11. Progress callback + SSE bridge (sync build, async stream)
+The build pipeline is synchronous and CPU-bound; the determinate progress bar
+needs incremental updates without blocking the event loop. `build_erd` takes an
+optional `on_progress` callback and emits a clamped, monotonic `ErdProgress`
+at each weighted phase (the blocking `/erd` route passes nothing — zero
+behaviour change). The `/erd/stream` route runs the build in a thread
+(`asyncio.to_thread`) and bridges the callback into an `asyncio.Queue` that an
+async generator drains into SSE frames (`event: progress` … then a terminal
+`event: result` / `event: error`). Cache hits skip the expensive phases.
+
+Phase data (name, kind, start_pct, end_pct) lives in a single registry in
+`progress.py`; `ProgressReporter` wraps the callback with three helpers —
+`emit` (raw clamped emit), `emit_point` (looks up a point phase's single
+percent), `report_mapping` (per-item vs. boundary threshold logic, shared by
+the node and edge loops). Adding or retuning a phase means editing the phase
+registry in `progress.py` only, not the build loops.
+
+- `server/src/dbterd_server/erd/progress.py` — `PHASES` registry, `ProgressReporter` class.
+- `server/src/dbterd_server/erd/builder.py` — `build_erd(...)` constructs a `ProgressReporter` and calls its helpers; `_result_from_payload` runs the node/edge loops via `reporter.report_mapping`.
+- `server/src/dbterd_server/api/routes/erd.py` — `_sse_generator(...)` bridges the threaded build's callbacks to SSE frames via a single `_sse(event, model)` helper; `get_erd_stream` at `:112`.
+
 ---
 
 ## Extension (TypeScript / VS Code host)
 
-### 11. Observer (typed event bus)
+### 12. Observer (typed event bus)
 A minimally-typed `EventBus<PanelEvents>` decouples the webview's user actions
 (refresh, openCompiledSql, …) from the host's side effects. Publishers and
 subscribers never reference each other — avoids callbacks-into-callbacks plumbing.
@@ -138,7 +160,7 @@ subscribers never reference each other — avoids callbacks-into-callbacks plumb
 - `extension/src/messaging/bus.ts:19` — `on()` returns a `{ dispose() }` subscription (composes with the Disposable pattern).
 - `extension/src/extension.ts:49` — `new EventBus<PanelEvents>()`; subscriptions are tracked in `context.subscriptions` so they're torn down on deactivate (tightened by the design review).
 
-### 12. Disposable
+### 13. Disposable
 Long-lived resources implement VS Code's `Disposable` and are registered to
 `context.subscriptions`, giving deterministic teardown on deactivate.
 
@@ -146,7 +168,7 @@ Long-lived resources implement VS Code's `Disposable` and are registered to
 - `extension/src/webview/index.ts:43` — `ErdPanel` disposes its own subscription array.
 - `extension/src/logging/index.ts:93` — the logger exposes `dispose()`.
 
-### 13. Per-view Singleton
+### 14. Per-view Singleton
 `ErdPanel.current` enforces one ERD panel at a time, mirroring VS Code's
 one-webview-per-`viewId` constraint. `createOrShow` reveals the existing panel
 or creates one.
@@ -162,7 +184,7 @@ or creates one.
 
 ## Webview (React / @xyflow/react)
 
-### 14. Strategy registry (node/edge types)
+### 15. Strategy registry (node/edge types)
 Custom React Flow renderers are registered by string key in a type map, so the
 canvas picks the renderer per node/edge `type` — adding a renderer is a map
 entry, not a `switch`.
@@ -171,7 +193,7 @@ entry, not a `switch`.
 - `webview/src/components/edgeTypes.ts:4` — `edgeTypes = { composite: CompositeEdge }`.
 - Consumed at `webview/src/App.tsx` via `nodeTypes={nodeTypes} edgeTypes={edgeTypes}`.
 
-### 15. Custom typed error + classifier
+### 16. Custom typed error + classifier
 `ErdApiError` wraps the server's structured `{code, detail}` body; a classifier
 turns any HTTP failure into that type (falling back to `"unknown"`), letting the
 UI render code-specific remediation hints.
@@ -180,7 +202,7 @@ UI render code-specific remediation hints.
 - `webview/src/api/errors.ts:25` — `classifyErdError(body, status)` parses the structured body or degrades gracefully.
 - `webview/src/api/errors.ts:35-46` — `REMEDIATION` map + `remediationHint(code)` (a lookup table, not branching).
 
-### 16. Memoized derivation
+### 17. Memoized derivation
 View state (filter matches, connected set, decorated nodes/edges) is derived via
 `useMemo` chains keyed on their real inputs, so a filter keystroke doesn't
 rebuild work that only depends on the (reload-only) edge set.
@@ -193,10 +215,14 @@ rebuild work that only depends on the (reload-only) edge set.
 
 - **Shared contract (single JSON shape, three layers).** The `/erd` payload is
   defined once as Pydantic models and the TypeScript types are *generated* from
-  them, so the contract has one source of truth.
+  them, so the contract has one source of truth. Codegen wraps every exported
+  contract model (`ErdPayload`, `ErdProgress`) as a field of a synthetic
+  `_Contract` root so they all land in one shared `$defs` block — `json2ts`
+  then emits one TS interface per `$def`. To add a model to the generated types,
+  add it as a field on `_Contract`.
   - `server/src/dbterd_server/schemas/erd.py` (Pydantic) →
     `webview/src/types/erd.ts` (auto-generated; do not hand-edit) via
-    `server/src/dbterd_server/tools/codegen.py` (`task sync-contract`).
+    `server/src/dbterd_server/tools/codegen.py` (`_Contract`, `task sync-contract`).
 
 - **Mirrored protocol (known DRY exception).** The webview↔extension postMessage
   protocol lives in two byte-identical files

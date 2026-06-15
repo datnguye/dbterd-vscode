@@ -79,6 +79,14 @@
   outline-offset: 1px;
 }
 
+.erd-details-description {
+  margin: 0;
+  padding: 12px 14px;
+  color: var(--vscode-descriptionForeground, #a6a6a6);
+  line-height: 1.5;
+  border-bottom: 1px solid var(--vscode-widget-border, #3c3c3c);
+}
+
 .erd-details-meta {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -110,11 +118,17 @@
   text-overflow: ellipsis;
 }
 
+.erd-details-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 12px 14px 0;
+}
+
 .erd-details-open-file {
   display: flex;
   align-items: center;
   gap: 8px;
-  margin: 12px 14px 0;
   padding: 8px 10px;
   background: var(--vscode-button-secondaryBackground, #3a3d41);
   color: var(--vscode-button-secondaryForeground, #cccccc);

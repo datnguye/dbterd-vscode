@@ -19,6 +19,7 @@ const sampleNode: ErdNode = {
   resource_type: "model",
   schema_name: "analytics",
   database: "warehouse",
+  model_path: "/workspace/models/orders.sql",
   compiled_sql: "SELECT id, customer_id, amount FROM orders",
   columns: [
     { name: "id", data_type: "int", is_primary_key: true },
@@ -39,6 +40,22 @@ describe("DetailsPane", () => {
     expect(screen.getByText("FK to customers")).toBeTruthy();
   });
 
+  it("posts openFile when the open model file button is clicked", () => {
+    render(<DetailsPane node={sampleNode} onClose={() => {}} />);
+    fireEvent.click(screen.getByText(/Open model file/i));
+    expect(postMessage).toHaveBeenCalledWith({
+      type: "openFile",
+      path: "/workspace/models/orders.sql",
+    });
+  });
+
+  it("does not render the open model file button when model_path is missing", () => {
+    render(
+      <DetailsPane node={{ ...sampleNode, model_path: null }} onClose={() => {}} />,
+    );
+    expect(screen.queryByText(/Open model file/i)).toBeNull();
+  });
+
   it("posts openCompiledSql when the open compiled SQL button is clicked", () => {
     render(<DetailsPane node={sampleNode} onClose={() => {}} />);
     fireEvent.click(screen.getByText(/Open compiled SQL/i));
@@ -53,6 +70,14 @@ describe("DetailsPane", () => {
     render(
       <DetailsPane node={{ ...sampleNode, compiled_sql: null }} onClose={() => {}} />,
     );
+    expect(screen.queryByText(/Open compiled SQL/i)).toBeNull();
+  });
+
+  it("renders neither action button when both model_path and compiled_sql are missing", () => {
+    render(
+      <DetailsPane node={{ ...sampleNode, model_path: null, compiled_sql: null }} onClose={() => {}} />,
+    );
+    expect(screen.queryByText(/Open model file/i)).toBeNull();
     expect(screen.queryByText(/Open compiled SQL/i)).toBeNull();
   });
 

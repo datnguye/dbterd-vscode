@@ -4,6 +4,15 @@ from typing import Literal
 from pydantic import BaseModel
 
 ResourceType = Literal["model", "source", "seed", "snapshot"]
+ProgressPhase = Literal[
+    "validating",
+    "configuring",
+    "invoking",
+    "mapping_nodes",
+    "mapping_edges",
+    "postprocessing",
+    "done",
+]
 RelationshipType = Literal["fk", "lineage"]
 # dbterd's Ref.type: "n1" (many-to-one), "11" (one-to-one), "1n", "nn", "".
 Cardinality = Literal["n1", "11", "1n", "nn", ""]
@@ -29,6 +38,10 @@ class ErdNode(BaseModel):
     # Full compiled SQL from dbterd's json target. The webview opens this in an
     # untitled editor on double-click.
     compiled_sql: str | None = None
+    # Absolute path to the model's source .sql file on disk, resolved from the
+    # manifest's original_file_path. None for non-models or unresolvable paths.
+    # The webview's "Open model file" action opens this in the editor.
+    model_path: str | None = None
 
 
 class ErdEdge(BaseModel):
@@ -48,6 +61,12 @@ class ErdEdge(BaseModel):
     # Friendly label from `meta.relationship_labels` in schema.yml.
     label: str | None = None
     cardinality: Cardinality = ""
+
+
+class ErdProgress(BaseModel):
+    phase: ProgressPhase
+    percent: int  # 0..100, monotonic non-decreasing
+    message: str  # human-readable, e.g. "mapping 420/900 nodes"
 
 
 class ErdMetadata(BaseModel):
