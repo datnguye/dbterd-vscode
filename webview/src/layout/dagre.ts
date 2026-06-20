@@ -4,15 +4,21 @@
 import dagre from "@dagrejs/dagre";
 
 import type { ErdEdge, ErdNode } from "../types/erd";
-import { estimateDimensions, type TableDimensions } from "./dimensions";
+import type { TableDimensions } from "./dimensions";
+import { buildDimensions, centreToTopLeft } from "./graph";
 
 // "LR" = left-to-right hierarchical. dbterd's json target orders edges
 // from_id = FK holder (child / referencing) → to_id = referenced (parent),
 // so the diagram reads referencing → referenced left-to-right.
 const LAYOUT_DIRECTION = "LR";
-const NODE_SEPARATION = 60;
-const RANK_SEPARATION = 120;
+const NODE_SEPARATION = 40;
+const RANK_SEPARATION = 80;
 const MARGIN = 24;
+// network-simplex assigns ranks that minimise total edge length (tighter than
+// the default longest-path), and "UL" aligns nodes to the upper-left of their
+// rank so ranks read as balanced rows rather than centre-spread fans.
+const RANKER = "network-simplex";
+const NODE_ALIGN = "UL";
 
 export interface LaidOutNode {
   id: string;
@@ -32,16 +38,14 @@ export function runDagreLayout(
     ranksep: RANK_SEPARATION,
     marginx: MARGIN,
     marginy: MARGIN,
+    ranker: RANKER,
+    align: NODE_ALIGN,
   });
   g.setDefaultEdgeLabel(() => ({}));
 
-  // Memoize dimensions so dagre and the position converter agree on the same
-  // value — consistency matters more than perf here.
-  const dims = new Map<string, TableDimensions>();
+  const dims = buildDimensions(nodes);
   for (const node of nodes) {
-    const dim = estimateDimensions(node);
-    dims.set(node.id, dim);
-    g.setNode(node.id, dim);
+    g.setNode(node.id, dims.get(node.id)!);
   }
   for (const edge of edges) {
     g.setEdge(edge.from_id, edge.to_id);
@@ -51,13 +55,7 @@ export function runDagreLayout(
   return nodes.map((n) => {
     const pos = g.node(n.id);
     const dim = dims.get(n.id)!;
-    // Dagre reports center-coordinates; xyflow expects top-left. Offset by
-    // half-dimensions to convert.
-    return {
-      id: n.id,
-      x: pos.x - dim.width / 2,
-      y: pos.y - dim.height / 2,
-      dimensions: dim,
-    };
+    const { x, y } = centreToTopLeft(pos, dim);
+    return { id: n.id, x, y, dimensions: dim };
   });
 }

@@ -40,17 +40,20 @@ html, body, #root {
   stroke-dasharray: 6 4;
 }
 
-/* Composite edges (multi-column FKs) don't go through React Flow's built-in
-   edge pipeline, so we replicate its dash animation on our own <path>s. */
+/* Custom FK edges (single + multi-column) draw their own <path>s rather than
+   going through React Flow's built-in edge pipeline, so we replicate its dash
+   animation here. */
 .erd-composite-bundle,
-.erd-composite-tail {
+.erd-composite-tail,
+.erd-single-edge {
   stroke-linecap: round;
   stroke-linejoin: round;
   fill: none;
 }
 
 .erd-composite-bundle,
-.erd-composite-tail.animated {
+.erd-composite-tail.animated,
+.erd-single-edge.animated {
   stroke-dasharray: 6 4;
   animation: erd-dash 0.5s linear infinite;
 }

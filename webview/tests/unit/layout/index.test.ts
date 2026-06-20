@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { toFlowGraph } from "@/layout";
+import { isLayoutStyle, LAYOUT_STYLES, toFlowGraph } from "@/layout";
 import type { ErdPayload } from "@/types/erd";
 
 const payload: ErdPayload = {
@@ -74,26 +74,36 @@ describe("toFlowGraph", () => {
     expect(a.position.x !== b.position.x || a.position.y !== b.position.y).toBe(true);
   });
 
-  it("routes edges to column-scoped handles when both columns are known", () => {
+  it("carries column references on single edges so the custom edge can anchor", () => {
     const graph = toFlowGraph(payload);
     expect(graph.edges[0]).toMatchObject({
       id: "e1",
       source: "model.shop.orders",
       target: "model.shop.customers",
-      sourceHandle: "customer_id__out",
-      targetHandle: "id__in",
-      animated: true,
+      type: "single",
+      data: {
+        from_column: "customer_id",
+        to_column: "id",
+        relationship_type: "fk",
+      },
     });
+    // The custom edge resolves its own side/anchor at render time — no static
+    // source/target handle is pinned (that would vanish when a row collapses).
+    expect(graph.edges[0].sourceHandle).toBeUndefined();
+    expect(graph.edges[0].targetHandle).toBeUndefined();
   });
 
-  it("falls back to table-level handles when a column is absent", () => {
+  it("leaves column references null on single edges when columns are absent", () => {
     const bare: ErdPayload = {
       ...payload,
       nodes: payload.nodes.map((n) => ({ ...n, columns: [] })),
     };
     const graph = toFlowGraph(bare);
-    expect(graph.edges[0].sourceHandle).toBe("__table_out");
-    expect(graph.edges[0].targetHandle).toBe("__table_in");
+    expect(graph.edges[0].type).toBe("single");
+    expect(graph.edges[0].data).toMatchObject({
+      from_column: "customer_id",
+      to_column: "id",
+    });
   });
 
   it("marks multi-column edges as composite and passes column lists through", () => {
@@ -117,7 +127,7 @@ describe("toFlowGraph", () => {
     });
   });
 
-  it("single-column edges remain default (non-composite) edges", () => {
+  it("single-column edges use the custom single edge type", () => {
     const single: ErdPayload = {
       ...payload,
       edges: [
@@ -129,10 +139,20 @@ describe("toFlowGraph", () => {
       ],
     };
     const graph = toFlowGraph(single);
-    expect(graph.edges[0].type).toBeUndefined();
+    expect(graph.edges[0].type).toBe("single");
   });
 
-  it("falls back when edge has null column references", () => {
+  it("runs the radial and force engines, not just the default dagre", () => {
+    // Each engine must place the two nodes somewhere distinct; this exercises
+    // the runLayout dispatch arms for the non-default styles.
+    for (const style of ["radial", "force"] as const) {
+      const graph = toFlowGraph(payload, style);
+      const [a, b] = graph.nodes;
+      expect(a.position.x !== b.position.x || a.position.y !== b.position.y).toBe(true);
+    }
+  });
+
+  it("keeps null column references as null on the single edge", () => {
     const nullCols: ErdPayload = {
       ...payload,
       edges: [
@@ -144,7 +164,26 @@ describe("toFlowGraph", () => {
       ],
     };
     const graph = toFlowGraph(nullCols);
-    expect(graph.edges[0].sourceHandle).toBe("__table_out");
-    expect(graph.edges[0].targetHandle).toBe("__table_in");
+    expect(graph.edges[0].type).toBe("single");
+    expect(graph.edges[0].data).toMatchObject({
+      from_column: null,
+      to_column: null,
+    });
+  });
+});
+
+describe("isLayoutStyle", () => {
+  it("accepts every known layout style", () => {
+    for (const style of LAYOUT_STYLES) {
+      expect(isLayoutStyle(style)).toBe(true);
+    }
+  });
+
+  it("rejects unknown strings and non-string values", () => {
+    expect(isLayoutStyle("tree")).toBe(false);
+    expect(isLayoutStyle("")).toBe(false);
+    expect(isLayoutStyle(undefined)).toBe(false);
+    expect(isLayoutStyle(null)).toBe(false);
+    expect(isLayoutStyle(42)).toBe(false);
   });
 });

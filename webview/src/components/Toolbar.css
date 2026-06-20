@@ -13,6 +13,12 @@
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
 }
 
+.erd-toolbar-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+
 .erd-toolbar-divider {
   width: 1px;
   height: 18px;
@@ -42,6 +48,22 @@
 
 .erd-toolbar-btn:active {
   background: var(--vscode-toolbar-activeBackground, #3c3c3c);
+}
+
+.erd-toolbar-btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.erd-toolbar-btn:disabled:hover {
+  background: transparent;
+  border-color: transparent;
+}
+
+.erd-toolbar-btn[data-active] {
+  background: var(--vscode-toolbar-activeBackground, #3c3c3c);
+  border-color: var(--vscode-focusBorder, #007acc);
+  color: var(--vscode-focusBorder, #007acc);
 }
 
 .erd-toolbar-btn:focus-visible {

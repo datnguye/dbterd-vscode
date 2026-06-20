@@ -3,20 +3,20 @@
 // row height. Dagre uses these to space nodes without overlap.
 
 import {
-  COLLAPSE_THRESHOLD,
-  COLLAPSED_VISIBLE,
   COLLAPSE_TOGGLE_HEIGHT,
+  COLUMN_HEIGHT,
+  HEADER_HEIGHT,
+  isCollapsible,
+  MIN_CARD_WIDTH,
+  visibleColumnCount,
 } from "../components/tableConstants";
 import type { Column, ErdNode } from "../types/erd";
 
-const MIN_TABLE_WIDTH = 220;
 const MAX_TABLE_WIDTH = 440;
 // Visual budget per character; tuned against the ErdTableNode CSS (12px
 // monospace column name + 10px muted type + PK/FK badge column).
 const CHAR_WIDTH = 7;
 const TABLE_HORIZONTAL_PADDING = 60;
-const HEADER_HEIGHT = 32;
-const COLUMN_HEIGHT = 22;
 const MIN_TABLE_HEIGHT = 80;
 
 export interface TableDimensions {
@@ -34,13 +34,13 @@ export function estimateWidth(node: ErdNode): number {
     node.name.length,
   );
   const raw = longest * CHAR_WIDTH + TABLE_HORIZONTAL_PADDING;
-  return Math.min(MAX_TABLE_WIDTH, Math.max(MIN_TABLE_WIDTH, raw));
+  return Math.min(MAX_TABLE_WIDTH, Math.max(MIN_CARD_WIDTH, raw));
 }
 
 export function estimateHeight(node: ErdNode): number {
   const total = node.columns.length;
-  const visible = total > COLLAPSE_THRESHOLD ? COLLAPSED_VISIBLE : total;
-  const toggleExtra = total > COLLAPSE_THRESHOLD ? COLLAPSE_TOGGLE_HEIGHT : 0;
+  const visible = visibleColumnCount(total, false);
+  const toggleExtra = isCollapsible(total) ? COLLAPSE_TOGGLE_HEIGHT : 0;
   return Math.max(MIN_TABLE_HEIGHT, HEADER_HEIGHT + visible * COLUMN_HEIGHT + toggleExtra);
 }
 

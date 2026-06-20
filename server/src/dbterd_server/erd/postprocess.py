@@ -1,6 +1,6 @@
 """Post-mapping pass that fixes up the payload before we hand it off.
 
-Two fix-ups, in order:
+Three fix-ups, in order:
 
 1. Reconcile edge endpoints to node ids. With `entity-name-format: model`,
    dbterd's json target shortens an edge's `from_id`/`to_id` to the node's
@@ -12,8 +12,19 @@ Two fix-ups, in order:
 2. Inject edge-referenced columns missing from their node. Partial-catalog
    projects can have edges pointing at columns absent from the node's column
    list; we add synthetic entries so the webview anchors edges to real column
-   handles instead of the table border. This relies on step 1 having already
-   aligned `from_id`/`to_id` with real node ids.
+   handles instead of the table border. Every column an edge references is
+   injected — the full composite `from_columns`/`to_columns` lists, not just the
+   primary pair — so step 3's FK flag can land on each drawn connector. This
+   relies on step 1 having already aligned `from_id`/`to_id` with real node ids.
+
+3. Flag FK-holder columns. dbterd's json target draws relationship edges but
+   does not always set `is_foreign_key` on the columns those edges originate
+   from (its column flagging and its edge detection can diverge — observed on
+   relationship-test-derived edges, where every `from_column` participates in an
+   edge yet stays `is_foreign_key=False`). We mark every column on the `from_id`
+   side of an edge as a foreign key so the webview's FK badge matches the
+   connectors actually drawn. This relies on steps 1–2: endpoints are real node
+   ids and the referenced columns exist.
 
 The pass uses a node index with a memoized column-name set so wide tables with
 high edge fan-in stay O(edges) instead of O(edges × columns).
@@ -23,12 +34,12 @@ from dbterd_server.schemas import Column, ErdEdge, ErdNode
 
 
 class _NodeIndex:
-    """Node-by-id, by-name, plus a memoized column-name set per node.
+    """Node-by-id, by-name, plus a memoized column-by-name map per node.
 
-    The column-name set turns the "does this column already exist?" check from
-    a linear scan into an O(1) membership test, and stays in sync as
-    `add_column` appends. The by-name map lets us reconcile short-name edge
-    endpoints back to canonical node ids.
+    The column-by-name map turns both the "does this column already exist?"
+    check and the "fetch this column" lookup from a linear scan into an O(1)
+    operation, and stays in sync as `add_column` appends. The by-name map lets
+    us reconcile short-name edge endpoints back to canonical node ids.
     """
 
     def __init__(self, nodes: list[ErdNode]) -> None:
@@ -36,7 +47,9 @@ class _NodeIndex:
         # Last node wins on a name collision; node ids are unique so the
         # id-keyed lookups above are always exact. Name is only a fallback.
         self._id_by_name = {node.name: node.id for node in nodes}
-        self._column_names = {node.id: {col.name for col in node.columns} for node in nodes}
+        self._columns_by_name = {
+            node.id: {col.name: col for col in reversed(node.columns)} for node in nodes
+        }
 
     def get(self, node_id: str | None) -> ErdNode | None:
         return self._by_id.get(node_id) if node_id is not None else None
@@ -54,18 +67,22 @@ class _NodeIndex:
         return self._id_by_name.get(endpoint, endpoint)
 
     def has_column(self, node: ErdNode, column_name: str) -> bool:
-        return column_name in self._column_names[node.id]
+        return column_name in self._columns_by_name[node.id]
+
+    def get_column(self, node: ErdNode, column_name: str) -> Column | None:
+        return self._columns_by_name[node.id].get(column_name)
 
     def add_column(self, node: ErdNode, column: Column) -> None:
         node.columns.append(column)
-        self._column_names[node.id].add(column.name)
+        self._columns_by_name[node.id].setdefault(column.name, column)
 
 
 def postprocess(nodes: list[ErdNode], edges: list[ErdEdge]) -> None:
-    """Reconcile edge endpoints to node ids, then inject missing columns."""
+    """Reconcile endpoints, inject missing columns, then flag FK columns."""
     index = _NodeIndex(nodes)
     reconcile_edge_endpoints(edges, index)
     ensure_ref_columns_exist(edges, index)
+    flag_foreign_key_columns(edges, index)
 
 
 def reconcile_edge_endpoints(edges: list[ErdEdge], index: _NodeIndex) -> None:
@@ -76,8 +93,36 @@ def reconcile_edge_endpoints(edges: list[ErdEdge], index: _NodeIndex) -> None:
 
 def ensure_ref_columns_exist(edges: list[ErdEdge], index: _NodeIndex) -> None:
     for edge in edges:
-        _inject_column(index, index.get(edge.from_id), edge.from_column)
-        _inject_column(index, index.get(edge.to_id), edge.to_column)
+        from_node = index.get(edge.from_id)
+        to_node = index.get(edge.to_id)
+        for column_name in _edge_columns(edge.from_columns, edge.from_column):
+            _inject_column(index, from_node, column_name)
+        for column_name in _edge_columns(edge.to_columns, edge.to_column):
+            _inject_column(index, to_node, column_name)
+
+
+def flag_foreign_key_columns(edges: list[ErdEdge], index: _NodeIndex) -> None:
+    """Mark each edge's `from_id`-side columns as foreign keys.
+
+    The FK holder is the `from` side (dbterd convention: from = referencing /
+    child, to = referenced / parent), so only those columns are flagged — never
+    the referenced parent columns. Uses the composite `from_columns` list when
+    present, else the single `from_column`. Only ever sets the flag True.
+    """
+    for edge in edges:
+        node = index.get(edge.from_id)
+        if node is None:
+            continue
+        for column_name in _edge_columns(edge.from_columns, edge.from_column):
+            column = index.get_column(node, column_name)
+            if column is not None:
+                column.is_foreign_key = True
+
+
+def _edge_columns(composite: list[str], primary: str | None) -> list[str]:
+    """The columns an edge references on one side: the composite list when
+    present, else the single primary column (empty when neither is set)."""
+    return composite or ([primary] if primary else [])
 
 
 def _inject_column(index: _NodeIndex, node: ErdNode | None, column_name: str | None) -> None:
@@ -92,6 +137,6 @@ def _inject_column(index: _NodeIndex, node: ErdNode | None, column_name: str | N
             data_type=None,
             description=None,
             is_primary_key=False,
-            is_foreign_key=True,
+            is_foreign_key=False,
         ),
     )

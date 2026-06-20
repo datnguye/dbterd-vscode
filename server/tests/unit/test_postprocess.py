@@ -24,6 +24,21 @@ def _edge(from_id: str, to_id: str, from_col: str, to_col: str) -> ErdEdge:
     )
 
 
+def _composite_edge(
+    from_id: str, to_id: str, from_columns: list[str], to_columns: list[str]
+) -> ErdEdge:
+    return ErdEdge(
+        id="e",
+        from_id=from_id,
+        to_id=to_id,
+        from_column=from_columns[0],
+        to_column=to_columns[0],
+        from_columns=from_columns,
+        to_columns=to_columns,
+        relationship_type="fk",
+    )
+
+
 def test_injects_missing_from_column_as_synthetic_fk() -> None:
     parent = _node("parent", [])
     child = _node("child", [Column(name="id", is_primary_key=True)])
@@ -34,12 +49,12 @@ def test_injects_missing_from_column_as_synthetic_fk() -> None:
     assert injected.data_type is None
 
 
-def test_injects_missing_to_column_as_synthetic_fk() -> None:
+def test_injects_missing_to_column_not_flagged_as_fk() -> None:
     parent = _node("parent", [Column(name="id", is_primary_key=True)])
     child = _node("child", [])
     pp.postprocess([parent, child], [_edge("parent", "child", "id", "parent_id")])
     injected = next(c for c in child.columns if c.name == "parent_id")
-    assert injected.is_foreign_key is True
+    assert injected.is_foreign_key is False
     assert injected.is_primary_key is False
 
 
@@ -89,6 +104,41 @@ def test_ensure_ref_columns_exist_injects_both_sides() -> None:
     pp.ensure_ref_columns_exist([edge], index)
     assert any(c.name == "fk_col" for c in from_node.columns)
     assert any(c.name == "pk_col" for c in to_node.columns)
+
+
+def test_ensure_ref_columns_exist_injects_all_composite_columns() -> None:
+    from_node = _node("from", [])
+    to_node = _node("to", [])
+    index = pp._NodeIndex([from_node, to_node])
+    edge = _composite_edge("from", "to", ["a", "b"], ["x", "y"])
+    pp.ensure_ref_columns_exist([edge], index)
+    assert {c.name for c in from_node.columns} == {"a", "b"}
+    assert {c.name for c in to_node.columns} == {"x", "y"}
+
+
+def test_composite_secondary_column_is_injected_and_flagged() -> None:
+    child = _node("child", [])
+    parent = _node("parent", [])
+    edge = _composite_edge("child", "parent", ["a", "b"], ["x", "y"])
+    pp.postprocess([child, parent], [edge])
+    assert {c.name for c in child.columns if c.is_foreign_key} == {"a", "b"}
+
+
+def test_add_column_keeps_get_column_in_sync() -> None:
+    node = _node("n", [])
+    index = pp._NodeIndex([node])
+    injected = Column(name="new")
+    index.add_column(node, injected)
+    assert index.get_column(node, "new") is injected
+    assert index.has_column(node, "new") is True
+
+
+def test_get_column_returns_first_on_duplicate_names() -> None:
+    first = Column(name="dup", data_type="int")
+    second = Column(name="dup", data_type="text")
+    node = _node("n", [first, second])
+    index = pp._NodeIndex([node])
+    assert index.get_column(node, "dup") is first
 
 
 # ---------------------------------------------------------------------------
@@ -142,3 +192,65 @@ def test_node_index_resolve_id_prefers_id_over_name() -> None:
     b = _node("gamma", [], name="alpha")
     index = pp._NodeIndex([a, b])
     assert index.resolve_id("alpha") == "alpha"
+
+
+# ---------------------------------------------------------------------------
+# foreign-key flagging (dbterd draws the edge but may not flag the column)
+# ---------------------------------------------------------------------------
+
+
+def test_flag_fk_marks_preexisting_from_column() -> None:
+    # A column already present on the FK-holder node, referenced by an edge but
+    # left is_foreign_key=False by dbterd, gets flagged.
+    child = _node("child", [Column(name="parent_id", data_type="int")])
+    parent = _node("parent", [Column(name="id", is_primary_key=True)])
+    pp.postprocess([child, parent], [_edge("child", "parent", "parent_id", "id")])
+    col = next(c for c in child.columns if c.name == "parent_id")
+    assert col.is_foreign_key is True
+
+
+def test_flag_fk_does_not_mark_referenced_to_column() -> None:
+    child = _node("child", [Column(name="parent_id")])
+    parent = _node("parent", [Column(name="id", is_primary_key=True)])
+    pp.postprocess([child, parent], [_edge("child", "parent", "parent_id", "id")])
+    # The parent (to) side column is referenced, not a foreign key.
+    assert next(c for c in parent.columns if c.name == "id").is_foreign_key is False
+
+
+def test_flag_fk_marks_all_composite_from_columns() -> None:
+    child = _node("child", [Column(name="a"), Column(name="b")])
+    parent = _node("parent", [Column(name="x"), Column(name="y")])
+    edge = _composite_edge("child", "parent", ["a", "b"], ["x", "y"])
+    pp.postprocess([child, parent], [edge])
+    flagged = {c.name for c in child.columns if c.is_foreign_key}
+    assert flagged == {"a", "b"}
+
+
+def test_flag_fk_never_unsets_existing_flag() -> None:
+    child = _node("child", [Column(name="fk", is_foreign_key=True)])
+    parent = _node("parent", [Column(name="id", is_primary_key=True)])
+    # An edge that touches an unrelated column must not clear the existing flag.
+    pp.postprocess([child, parent], [_edge("child", "parent", "fk", "id")])
+    assert next(c for c in child.columns if c.name == "fk").is_foreign_key is True
+
+
+def test_flag_fk_skips_unknown_from_node() -> None:
+    parent = _node("parent", [Column(name="id", is_primary_key=True)])
+    # from_id is a ghost; flagging is a no-op and must not raise.
+    pp.flag_foreign_key_columns([_edge("ghost", "parent", "x", "id")], pp._NodeIndex([parent]))
+    assert next(c for c in parent.columns if c.name == "id").is_foreign_key is False
+
+
+def test_flag_fk_skips_column_absent_from_node() -> None:
+    node = _node("n", [Column(name="present")])
+    index = pp._NodeIndex([node])
+    pp.flag_foreign_key_columns([_edge("n", "n", "absent", "present")], index)
+    # "absent" isn't a real column on the node — nothing to flag, no crash.
+    assert all(c.is_foreign_key is False for c in node.columns)
+
+
+def test_node_index_get_column_returns_none_for_unknown_name() -> None:
+    node = _node("n", [Column(name="known")])
+    index = pp._NodeIndex([node])
+    assert index.get_column(node, "missing") is None
+    assert index.get_column(node, "known") is not None

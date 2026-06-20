@@ -47,10 +47,17 @@
     inset 0 0 0 1px var(--vscode-charts-yellow, #e5c07b);
 }
 
+/* Fixed heights below are pinned to the metrics in tableConstants.ts so the
+   FK edge anchor (which computes a column's row Y from its index, not measured
+   bounds) lands exactly on the row. Changing a height here means changing the
+   matching constant in lockstep. `box-sizing: border-box` folds padding and the
+   header's bottom border into the declared height. */
 .erd-table-header {
   display: flex;
   align-items: center;
   gap: 6px;
+  box-sizing: border-box;
+  height: 32px; /* HEADER_HEIGHT */
   padding: 6px 10px;
   background: var(--vscode-sideBarSectionHeader-background, #252526);
   border-bottom: 1px solid var(--vscode-focusBorder, #007acc);
@@ -69,7 +76,7 @@
 .erd-table-columns {
   list-style: none;
   margin: 0;
-  padding: 4px 0;
+  padding: 4px 0; /* COLUMNS_TOP_PADDING (top) */
 }
 
 .erd-column {
@@ -77,8 +84,22 @@
   grid-template-columns: 28px 1fr auto;
   align-items: center;
   gap: 6px;
-  padding: 2px 10px;
+  box-sizing: border-box;
+  height: 22px; /* COLUMN_HEIGHT */
+  padding: 0 10px;
   position: relative;
+}
+
+/* Column joined by the selected edge — a subtle tint + left accent that echoes
+   the edge's yellow without overpowering the row text. */
+.erd-column[data-highlighted="true"] {
+  background: color-mix(in srgb, var(--vscode-charts-yellow, #e5c07b) 16%, transparent);
+  box-shadow: inset 2px 0 0 var(--vscode-charts-yellow, #e5c07b);
+}
+
+.erd-column[data-highlighted="true"] .erd-column-name {
+  color: var(--vscode-charts-yellow, #e5c07b);
+  font-weight: 600;
 }
 
 .erd-column-badge {
@@ -112,7 +133,9 @@
 .erd-table-expand {
   display: block;
   width: 100%;
-  padding: 4px 10px;
+  box-sizing: border-box;
+  height: 24px; /* COLLAPSE_TOGGLE_HEIGHT */
+  padding: 0 10px;
   background: transparent;
   color: var(--vscode-textLink-foreground, #3794ff);
   border: none;
@@ -127,34 +150,17 @@
   background: var(--vscode-list-hoverBackground, #2a2d2e);
 }
 
-/* React Flow's default handle is a 6x6 tan square — near-invisible against
-   our table chrome. Bump to a 10px circle in the VS Code focus-border color. */
-.erd-table .react-flow__handle {
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  background: var(--vscode-focusBorder, #007acc);
-  border: 2px solid var(--vscode-editor-background, #1e1e1e);
-  opacity: 0.85;
-}
-
-.erd-table .react-flow__handle:hover {
-  opacity: 1;
-  transform: scale(1.25);
-}
-
-/* Table-level fallback handles (__table_in / __table_out) — invisible by
-   default. They still function as anchor points when an edge can't resolve
-   to a specific column, but they shouldn't clutter the canvas when unused.
-   A lightweight hover reveal helps debugging without permanent chrome. */
-.erd-table .react-flow__handle[data-handleid="__table_in"],
-.erd-table .react-flow__handle[data-handleid="__table_out"] {
-  top: 50%;
+/* The FK edges draw their own paths and compute their own anchors, so the
+   node's connection handles need no visible dot — keep them present (React Flow
+   requires them) but invisible and non-interactive. */
+.erd-table .react-flow__handle.erd-hidden-handle {
+  width: 1px;
+  height: 1px;
+  min-width: 0;
+  min-height: 0;
+  border: none;
+  background: transparent;
   opacity: 0;
   pointer-events: none;
 }
 
-.erd-table:hover .react-flow__handle[data-handleid="__table_in"],
-.erd-table:hover .react-flow__handle[data-handleid="__table_out"] {
-  opacity: 0.3;
-}

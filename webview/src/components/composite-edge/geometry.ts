@@ -2,10 +2,10 @@
 // React component so it can be unit-tested against fixed Point inputs without
 // pulling xyflow into the test environment.
 
-export interface Point {
-  x: number;
-  y: number;
-}
+// Single canonical {x, y} type, shared with the layout primitives.
+import type { Point } from "../../layout/overlap";
+
+export type { Point };
 
 export const BUNDLE_OFFSET = 40; // px the bundle point sits off the table edge
 export const TAIL_CURVE_RATIO = 0.6; // fraction of tail length used for bezier control
@@ -29,24 +29,17 @@ export function bundlePoint(
   return { x: edgeX + offset, y: yCoord };
 }
 
-export function bundlePath(from: Point, to: Point, sourceIsLeft: boolean): string {
-  // Curved bundled middle: cubic bezier with strong horizontal tangents on
-  // both sides so the midsection reads as a smooth "cable" rather than an
-  // angled line.
-  const dx = to.x - from.x;
-  const control = Math.abs(dx) * BUNDLE_CURVE_RATIO;
-  const c1x = from.x + (sourceIsLeft ? control : -control);
-  const c2x = to.x - (sourceIsLeft ? control : -control);
+function horizontalCubic(from: Point, to: Point, ratio: number, leftward: boolean): string {
+  const control = Math.abs(to.x - from.x) * ratio;
+  const c1x = from.x + (leftward ? control : -control);
+  const c2x = to.x - (leftward ? control : -control);
   return `M ${from.x} ${from.y} C ${c1x} ${from.y}, ${c2x} ${to.y}, ${to.x} ${to.y}`;
 }
 
+export function bundlePath(from: Point, to: Point, sourceIsLeft: boolean): string {
+  return horizontalCubic(from, to, BUNDLE_CURVE_RATIO, sourceIsLeft);
+}
+
 export function tailPath(from: Point, to: Point): string {
-  // Rounded tails: each column handle is pulled horizontally out of the table
-  // edge, then curves smoothly into the shared bundle point. Horizontal-first
-  // tangents prevent the tails from clipping back into the node card.
-  const dx = to.x - from.x;
-  const control = Math.abs(dx) * TAIL_CURVE_RATIO;
-  const c1x = from.x + (dx >= 0 ? control : -control);
-  const c2x = to.x - (dx >= 0 ? control : -control);
-  return `M ${from.x} ${from.y} C ${c1x} ${from.y}, ${c2x} ${to.y}, ${to.x} ${to.y}`;
+  return horizontalCubic(from, to, TAIL_CURVE_RATIO, to.x - from.x >= 0);
 }

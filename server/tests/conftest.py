@@ -10,6 +10,7 @@ from dbterd_server.api.service import ErdService
 from dbterd_server.erd.cache import ErdCache
 
 FIXTURE_ROOT = Path(__file__).parent / "fixtures" / "jaffle_shop"
+BIG_PROJECT_ROOT = Path(__file__).parent / "fixtures" / "big_project"
 
 
 @pytest.fixture
@@ -36,4 +37,11 @@ def client(app: FastAPI) -> TestClient:
 def fixture_project(tmp_path: Path) -> Path:
     dest = tmp_path / "project"
     shutil.copytree(FIXTURE_ROOT, dest)
+    return dest
+
+
+@pytest.fixture
+def big_project(tmp_path: Path) -> Path:
+    dest = tmp_path / "big_project"
+    shutil.copytree(BIG_PROJECT_ROOT, dest)
     return dest

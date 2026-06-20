@@ -1,0 +1,8 @@
+config-version: 2
+
+name: "proj_001"
+version: "1.0.0"
+profile: proj_001
+
+model-paths: ["models"]
+target-path: "target"

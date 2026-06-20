@@ -5,24 +5,42 @@ import type { Edge } from "@xyflow/react";
 
 import type { ErdEdge, ErdPayload } from "../types/erd";
 import type { ErdFlowNode, FlowGraph } from "../types/flow";
-import { runDagreLayout } from "./dagre";
-import {
-  buildColumnIndex,
-  hasHandle,
-  inHandle,
-  outHandle,
-  TABLE_IN,
-  TABLE_OUT,
-} from "./handles";
+import { runDagreLayout, type LaidOutNode } from "./dagre";
+import { runForceLayout } from "./force";
+import { runRadialLayout } from "./radial";
 
 export type { ErdFlowNode, ErdNodeData, FlowGraph } from "../types/flow";
 
-function norm(value: string | null | undefined): string | null {
-  return value ?? null;
+// Available canvas arrangements. "hierarchical" is dagre's left-to-right
+// ranking; "radial" fans hubs into stars; "force" is a spring simulation that
+// settles shared dimensions among their facts (best for star/snowflake
+// schemas). Persisted via the webview state API so a reload restores the choice.
+// Single source of truth for the set of layout styles and their order. The
+// LayoutStyle union, the persisted-state validator (isLayoutStyle), and the
+// Toolbar's button list all derive from this one array — adding a layout is a
+// single edit here (plus its engine module and a Toolbar icon).
+export const LAYOUT_STYLES = ["hierarchical", "radial", "force"] as const;
+
+export type LayoutStyle = (typeof LAYOUT_STYLES)[number];
+
+export const DEFAULT_LAYOUT: LayoutStyle = "radial";
+
+// Narrow an arbitrary persisted/string value to a known LayoutStyle.
+export function isLayoutStyle(value: unknown): value is LayoutStyle {
+  return typeof value === "string" && (LAYOUT_STYLES as readonly string[]).includes(value);
 }
 
-export function toFlowGraph(payload: ErdPayload): FlowGraph {
-  const positions = runDagreLayout(payload.nodes, payload.edges);
+function runLayout(payload: ErdPayload, style: LayoutStyle): LaidOutNode[] {
+  if (style === "radial") return runRadialLayout(payload.nodes, payload.edges);
+  if (style === "force") return runForceLayout(payload.nodes, payload.edges);
+  return runDagreLayout(payload.nodes, payload.edges);
+}
+
+export function toFlowGraph(
+  payload: ErdPayload,
+  style: LayoutStyle = DEFAULT_LAYOUT,
+): FlowGraph {
+  const positions = runLayout(payload, style);
   const positionsById = new Map(positions.map((p) => [p.id, p]));
 
   const nodes: ErdFlowNode[] = payload.nodes.map((n) => {
@@ -35,33 +53,28 @@ export function toFlowGraph(payload: ErdPayload): FlowGraph {
     };
   });
 
-  const columnIndex = buildColumnIndex(payload.nodes);
-  const edges: Edge[] = payload.edges.map((e) => mapEdge(e, columnIndex));
+  const edges: Edge[] = payload.edges.map((e) => mapEdge(e));
   return { nodes, edges };
 }
 
-function mapEdge(edge: ErdEdge, columnIndex: Map<string, Set<string>>): Edge {
-  const fromCol = norm(edge.from_column);
-  const toCol = norm(edge.to_column);
+function mapEdge(edge: ErdEdge): Edge {
+  const fromCol = edge.from_column ?? null;
+  const toCol = edge.to_column ?? null;
   const fromCols = edge.from_columns ?? [];
   const toCols = edge.to_columns ?? [];
   const isComposite = fromCols.length > 1 && toCols.length > 1;
 
+  // Both edge kinds render themselves via custom components that read live node
+  // geometry — they pick the anchor side per layout (auto side) and fall back to
+  // the table-level handle when a referenced column row is collapsed away. We
+  // only set source/target (so React Flow validates the endpoints) and hand the
+  // column references through `data`; no static sourceHandle/targetHandle, which
+  // would otherwise pin the side and vanish on collapse.
   if (isComposite) {
-    // Composite edges render themselves (per-column tails + bundled middle)
-    // via the custom `composite` edge type. We still set source/target and
-    // handles so React Flow validates the endpoints, but the visual path is
-    // painted entirely by CompositeEdge.tsx.
     return {
       id: edge.id,
       source: edge.from_id,
       target: edge.to_id,
-      sourceHandle: hasHandle(columnIndex, edge.from_id, fromCols[0])
-        ? outHandle(fromCols[0])
-        : TABLE_OUT,
-      targetHandle: hasHandle(columnIndex, edge.to_id, toCols[0])
-        ? inHandle(toCols[0])
-        : TABLE_IN,
       type: "composite",
       data: { from_columns: fromCols, to_columns: toCols },
     };
@@ -71,8 +84,11 @@ function mapEdge(edge: ErdEdge, columnIndex: Map<string, Set<string>>): Edge {
     id: edge.id,
     source: edge.from_id,
     target: edge.to_id,
-    sourceHandle: hasHandle(columnIndex, edge.from_id, fromCol) ? outHandle(fromCol!) : TABLE_OUT,
-    targetHandle: hasHandle(columnIndex, edge.to_id, toCol) ? inHandle(toCol!) : TABLE_IN,
-    animated: edge.relationship_type === "fk",
+    type: "single",
+    data: {
+      from_column: fromCol,
+      to_column: toCol,
+      relationship_type: edge.relationship_type,
+    },
   };
 }

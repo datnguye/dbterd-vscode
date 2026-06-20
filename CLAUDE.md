@@ -41,11 +41,15 @@ Day-to-day work is driven by `task` (root-level `Taskfile.yml`). Slash commands 
 - No relative imports in Python. All imports at module top.
 - No backward-compat shims unless explicitly asked.
 - Specific exception types in try/except.
-- Inline comments describe the current implementation only — never the history
-  that led to it. Drop "we used to…", "no longer…", "instead of the old…", and
-  references to removed code. A comment should read correctly to someone who has
-  never seen a previous version. (Rationale belonging to a design decision lives
-  in `.claude/design_patterns.md`, not in scattered code comments.)
+- **Do not add new inline comments.** Let names and structure carry intent;
+  put any rationale in `.claude/design_patterns.md` (or a module/function
+  docstring for an API contract), never in scattered `//` / `#` lines inside a
+  function body. This applies to new and edited code alike — when you touch a
+  block, do not leave behind explanatory inline comments.
+- The few inline comments that already exist must still describe the current
+  implementation only — never the history that led to it. Drop "we used to…",
+  "no longer…", "instead of the old…", and references to removed code. A comment
+  should read correctly to someone who has never seen a previous version.
 
 ## Design patterns
 
