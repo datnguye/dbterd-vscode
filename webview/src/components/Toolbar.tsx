@@ -1,5 +1,5 @@
 import { memo, type ReactElement } from "react";
-import { LAYOUT_STYLES, type LayoutStyle } from "../layout";
+import { LAYOUT_STYLES, type LayoutStyle } from "@datnguye/erd-flow";
 import { getVsCodeApi } from "../vscode";
 import { EntityFilter } from "./EntityFilter";
 import {
@@ -23,11 +23,7 @@ interface ToolbarProps {
   onToggleHideUnconnected: () => void;
   layout: LayoutStyle;
   onLayoutChange: (next: LayoutStyle) => void;
-  // True when every collapsible table is currently expanded (button collapses
-  // all next); false means the button expands all next.
   allExpanded: boolean;
-  // Whether any table has hidden columns to expand at all — disables the button
-  // when no table is collapsible.
   canExpand: boolean;
   onToggleExpandAll: () => void;
 }
@@ -47,8 +43,8 @@ const LAYOUT_META: Record<LayoutStyle, { label: string; tooltip: string; Icon: t
     Icon: StarIcon,
   },
   force: {
-    label: "Force layout",
-    tooltip: "Force (organic) layout — shared dimensions settle among their facts",
+    label: "Force-directed layout",
+    tooltip: "Force-directed (organic) layout — shared dimensions settle among their facts",
     Icon: OrganicIcon,
   },
 };
@@ -113,11 +109,11 @@ export const Toolbar = memo(function Toolbar({
       <button
         type="button"
         className="erd-toolbar-btn"
-        aria-label={allExpanded ? "Collapse all columns" : "Expand all columns"}
+        aria-label={allExpanded ? "Collapse all tables" : "Expand all tables"}
+        aria-pressed={allExpanded}
+        data-active={allExpanded || undefined}
         data-tooltip={
-          allExpanded
-            ? "Collapse all columns (hide rows past the first few)"
-            : "Expand all columns (show every column on every table)"
+          allExpanded ? "Collapse every table's columns" : "Expand every table's columns"
         }
         disabled={!canExpand}
         onClick={onToggleExpandAll}

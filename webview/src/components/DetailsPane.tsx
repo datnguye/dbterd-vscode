@@ -1,5 +1,5 @@
 import { memo, useCallback, useEffect, type ReactElement } from "react";
-import type { ErdNode } from "../types/erd";
+import type { ErdNode } from "@datnguye/erd-flow";
 import { getVsCodeApi } from "../vscode";
 import { CloseIcon, DatabaseIcon, FileCodeIcon, FileIcon, TableIcon } from "./icons";
 import "./DetailsPane.css";

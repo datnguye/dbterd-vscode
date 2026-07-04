@@ -1,32 +1,41 @@
-import type { Column, ErdEdge, ErdNode } from "@/types/erd";
+import type { Column, ErdEdge, ErdMetadata, ErdNode, ErdPayload } from "@datnguye/erd-flow";
 
-const ID_COLUMN: Column = {
-  name: "id",
-  data_type: "bigint",
-  description: null,
-  is_primary_key: true,
-  is_foreign_key: false,
-};
-
-export function node(id: string, name: string = id, columns: Column[] = [ID_COLUMN]): ErdNode {
+export function column(name: string, overrides: Partial<Column> = {}): Column {
   return {
-    id,
     name,
-    resource_type: "model",
-    schema_name: "analytics",
-    database: "prod",
-    columns,
-    compiled_sql: null,
+    data_type: "bigint",
+    description: null,
+    is_primary_key: false,
+    is_foreign_key: false,
+    ...overrides,
   };
 }
 
-export function edge(from: string, to: string): ErdEdge {
+export function node(id: string, overrides: Partial<ErdNode> = {}): ErdNode {
+  return {
+    id,
+    name: id.split(".").pop() ?? id,
+    resource_type: "model",
+    schema_name: "s",
+    database: "d",
+    columns: [column("id")],
+    ...overrides,
+  };
+}
+
+export function edge(from: string, to: string, overrides: Partial<ErdEdge> = {}): ErdEdge {
   return {
     id: `${from}->${to}`,
     from_id: from,
     to_id: to,
-    from_column: "id",
-    to_column: "id",
-    relationship_type: "fk",
+    ...overrides,
   };
+}
+
+export function payload(
+  nodes: ErdNode[],
+  edges: ErdEdge[] = [],
+  metadata: ErdMetadata = { generated_at: "2026-01-01T00:00:00Z", dbt_project_name: "demo" },
+): ErdPayload {
+  return { nodes, edges, metadata };
 }

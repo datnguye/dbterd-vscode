@@ -1,13 +1,13 @@
 # dbterd-vscode
 
-VS Code extension that visualizes dbt projects as an interactive ERD. Spins up a local FastAPI server wrapping the `dbterd` Python API, renders nodes/edges in a React + `@xyflow/react` webview.
+VS Code extension that visualizes dbt projects as an interactive ERD. Spins up a local FastAPI server wrapping the `dbterd` Python API, renders nodes/edges in a React webview built on the `@datnguye/erd-flow` package (which wraps `@xyflow/react`).
 
 ## Repo layout
 
 ```
 dbterd-vscode/
 ├── extension/   # VS Code extension host (TypeScript) — activates server, opens webview
-├── webview/     # React + @xyflow/react UI, bundled into extension at package time
+├── webview/     # React shell around @datnguye/erd-flow, bundled into extension at package time
 ├── server/      # FastAPI shim around the dbterd Python API (uv-managed)
 └── .claude/     # Agents, skills, commands for agentic development
 ```
@@ -84,15 +84,19 @@ extension/
 
 webview/
 ├── src/
-│   ├── App.tsx
-│   ├── api/{index,client,errors}.ts # ErdApiError, classifyErdError, remediationHint
-│   ├── components/{ErdTableNode,Toolbar,icons,...}/
-│   ├── components/composite-edge/{index,geometry}.tsx
-│   ├── layout/{index,dagre,dimensions,handles}.ts
+│   ├── App.tsx                      # thin shell around @datnguye/erd-flow's <ErdFlow>
+│   ├── api/{index,client,stream,errors}.ts # ErdApiError, classifyErdError, remediationHint
+│   ├── components/{Toolbar,EntityFilter,DetailsPane,ParseProgressBar,icons}.tsx
 │   ├── messaging/protocol.ts        # mirrors extension/src/messaging/protocol.ts
-│   └── types/{erd,flow}.ts          # erd.ts is auto-generated
+│   └── types/erd.ts                 # auto-generated
 └── tests/unit/                      # vitest, jsdom, @testing-library/react
 ```
+
+The graph itself (table nodes, FK edges, layout engines) lives in the external
+`@datnguye/erd-flow` npm package (repo: github.com/datnguye/erd-flow). Changes
+to node/edge rendering or layout behavior belong in that package; this repo
+only wires payload, theme (VS Code tokens → `--erd-*` variables), and toolbar
+state into `<ErdFlow>`.
 
 ### Path aliases
 

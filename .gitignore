@@ -164,3 +164,6 @@ webview/dist/
 # Per-developer agent memory (release-manager uses memory: local)
 .claude/agent-memory-local/
 .DS_Store
+
+# e2e suiteSetup writes machine-local paths into the fixture workspace settings
+extension/src/test/fixtures/jaffle-shop/.vscode/settings.json

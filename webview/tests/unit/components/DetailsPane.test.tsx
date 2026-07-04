@@ -1,7 +1,7 @@
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { DetailsPane } from "@/components/DetailsPane";
-import type { ErdNode } from "@/types/erd";
+import { column, node } from "../_support/erd-factories";
 
 const postMessage = vi.fn();
 vi.mock("@/vscode", () => ({
@@ -13,20 +13,17 @@ afterEach(() => {
   postMessage.mockReset();
 });
 
-const sampleNode: ErdNode = {
-  id: "model.demo.orders",
-  name: "orders",
-  resource_type: "model",
+const sampleNode = node("model.demo.orders", {
   schema_name: "analytics",
   database: "warehouse",
   model_path: "/workspace/models/orders.sql",
   compiled_sql: "SELECT id, customer_id, amount FROM orders",
   columns: [
-    { name: "id", data_type: "int", is_primary_key: true },
-    { name: "customer_id", data_type: "int", is_foreign_key: true, description: "FK to customers" },
-    { name: "amount", data_type: "numeric" },
+    column("id", { data_type: "int", is_primary_key: true }),
+    column("customer_id", { data_type: "int", is_foreign_key: true, description: "FK to customers" }),
+    column("amount", { data_type: "numeric" }),
   ],
-};
+});
 
 describe("DetailsPane", () => {
   it("renders model metadata and column list", () => {

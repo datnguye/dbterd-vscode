@@ -5,6 +5,12 @@ description: Use when building or modifying custom React Flow node components in
 
 # Custom React Flow nodes (@xyflow/react v12)
 
+> **Where this work lives now:** the table-card node, FK edges, and layout
+> engines were extracted into the external `@datnguye/erd-flow` package
+> (repo: github.com/datnguye/erd-flow). This repo's webview only wires
+> `<ErdFlow>` props — do not recreate node components under `webview/src/`.
+> The guidance below applies when working inside the erd-flow package repo.
+
 We're on `@xyflow/react` v12 — the v11 `reactflow` package is legacy. Imports come from `@xyflow/react`, styles from `@xyflow/react/dist/style.css`.
 
 Each node is a React component. We register them in one `nodeTypes` map passed to `<ReactFlow />`. Do not inline-define node components — that breaks React reconciliation and causes node flicker on every render.

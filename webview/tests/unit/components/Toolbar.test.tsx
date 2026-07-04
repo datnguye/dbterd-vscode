@@ -64,9 +64,9 @@ describe("Toolbar", () => {
     expect(onLayoutChange).toHaveBeenCalledWith("radial");
   });
 
-  it("offers the force layout as a selectable style", () => {
+  it("offers the force-directed layout as a selectable style", () => {
     const { onLayoutChange } = renderToolbar({ layout: "hierarchical" });
-    fireEvent.click(screen.getByLabelText(/Force layout/i));
+    fireEvent.click(screen.getByLabelText(/Force-directed layout/i));
     expect(onLayoutChange).toHaveBeenCalledWith("force");
   });
 
@@ -78,22 +78,21 @@ describe("Toolbar", () => {
     ).toBe("false");
   });
 
-  it("offers expand-all when not everything is expanded", () => {
-    const { onToggleExpandAll } = renderToolbar({ allExpanded: false });
-    fireEvent.click(screen.getByLabelText(/Expand all columns/i));
+  it("invokes the expand-all handler on click", () => {
+    const { onToggleExpandAll } = renderToolbar();
+    fireEvent.click(screen.getByLabelText(/Expand all tables/i));
     expect(onToggleExpandAll).toHaveBeenCalledTimes(1);
   });
 
-  it("offers collapse-all when everything is expanded", () => {
-    const { onToggleExpandAll } = renderToolbar({ allExpanded: true });
-    fireEvent.click(screen.getByLabelText(/Collapse all columns/i));
-    expect(onToggleExpandAll).toHaveBeenCalledTimes(1);
+  it("labels the expand-all button 'Collapse all' when everything is expanded", () => {
+    renderToolbar({ allExpanded: true });
+    expect(screen.getByLabelText(/Collapse all tables/i)).toBeTruthy();
   });
 
-  it("disables the expand-all button when no table is collapsible", () => {
+  it("disables the expand-all button when nothing is collapsible", () => {
     renderToolbar({ canExpand: false });
     expect(
-      (screen.getByLabelText(/Expand all columns/i) as HTMLButtonElement).disabled,
+      (screen.getByLabelText(/Expand all tables/i) as HTMLButtonElement).disabled,
     ).toBe(true);
   });
 });
