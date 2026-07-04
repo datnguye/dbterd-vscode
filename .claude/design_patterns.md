@@ -30,12 +30,9 @@ symbol — the pattern is the point, not the exact line.
     - [12. Observer (typed event bus)](#12-observer-typed-event-bus)
     - [13. Disposable](#13-disposable)
     - [14. Per-view Singleton](#14-per-view-singleton)
-  - [Webview (React / @xyflow/react)](#webview-react--xyflowreact)
-    - [15. Strategy registry (node/edge types)](#15-strategy-registry-nodeedge-types)
-    - [16. Custom typed error + classifier](#16-custom-typed-error--classifier)
-    - [17. Memoized derivation + write-through to React Flow's store](#17-memoized-derivation--write-through-to-react-flows-store)
-    - [18. Layout strategy (pluggable arrangement engines)](#18-layout-strategy-pluggable-arrangement-engines)
-    - [19. Self-drawing FK edges (auto side + collapse-safe)](#19-self-drawing-fk-edges-auto-side--collapse-safe)
+  - [Webview (React / thin shell around @datnguye/erd-flow)](#webview-react--thin-shell-around-datnguyeerd-flow)
+    - [15. Custom typed error + classifier](#15-custom-typed-error--classifier)
+    - [16. Thin shell around a packaged graph](#16-thin-shell-around-a-packaged-graph)
   - [Cross-cutting](#cross-cutting)
 
 ---
@@ -232,20 +229,9 @@ use case.
 
 ---
 
-## Webview (React / @xyflow/react)
+## Webview (React / thin shell around @datnguye/erd-flow)
 
-### 15. Strategy registry (node/edge types)
-
-**Theory** — Custom React Flow renderers are registered by string key in a type
-map, so the canvas picks the renderer per node/edge `type` — adding a renderer is
-a map entry, not a `switch`.
-
-**Example**
-- `webview/src/components/nodeTypes.ts:4` — `nodeTypes = { erdTable: ErdTableNode }`.
-- `webview/src/components/edgeTypes.ts:5` — `edgeTypes = { composite: CompositeEdge, single: SingleEdge }`.
-- Consumed at `webview/src/App.tsx` via `nodeTypes={nodeTypes} edgeTypes={edgeTypes}`.
-
-### 16. Custom typed error + classifier
+### 15. Custom typed error + classifier
 
 **Theory** — `ErdApiError` wraps the server's structured `{code, detail}` body; a
 classifier turns any HTTP failure into that type (falling back to `"unknown"`),
@@ -256,131 +242,78 @@ letting the UI render code-specific remediation hints.
 - `webview/src/api/errors.ts:25` — `classifyErdError(body, status)` parses the structured body or degrades gracefully.
 - `webview/src/api/errors.ts:35-46` — `REMEDIATION` map + `remediationHint(code)` (a lookup table, not branching).
 
-### 17. Memoized derivation + write-through to React Flow's store
+### 16. Thin shell around a packaged graph
 
-**Theory** — View state (filter matches, connected set, render nodes/edges) is
-derived via `useMemo` chains keyed on real inputs, so a filter keystroke doesn't
-rebuild work that only depends on the (reload-only) edge set. The derived render
-set is then **written into React Flow's own state via `setNodes`/`setEdges`**
-rather than passed as a prop, because a controlled `nodes` prop alone does not
-drop removed nodes from React Flow v12's internal store — the one node *removal*
-(the "hide unconnected" toggle, which drops zero-edge islands) only takes effect
-through the setter. The name filter only *highlights* (match/dim via
-`__filterState`) and never removes a table, and edges are never dimmed or
-dropped — every connector between two visible tables renders at full strength.
-Because `renderNodes` always re-derives positions from `baseNodes`, `baseNodes`
-must stay the one source of truth for positions: a drag writes the final
-coordinates *back* into `baseNodes` on drop (`onNodesChange` wrapper), so a later
-re-decoration (edge click, filter keystroke, hide toggle) can't clobber the
-user's manual arrangement with the original layout coordinates.
+**Theory** — The graph itself (table-card nodes, self-drawing FK edges, the
+pluggable layout engines, overlap relaxation, filter highlighting,
+hide-unconnected, per-card expand/collapse) lives in the external
+`@datnguye/erd-flow` npm package; `App` is a host shell that owns only what is
+genuinely VS Code's business: fetching/streaming the payload, the
+webview↔extension postMessage traffic (`openFile`, `setTitle`, `refresh`,
+parse-progress notifications), toolbar state, and theming. The boundary rules
+that keep the shell honest:
 
-Two consequences of the write-through fall out of this and are easy to get
-wrong:
-
-- **Refit timing.** Every viewport `fitView` — after a hide-unconnected toggle
-  *and* after a layout relayout (style switch / fresh payload) — must fire from
-  *inside* the `setNodes` effect, not from the layout effect or a separate effect
-  keyed on the toggle. A sibling/earlier effect runs before the new node set is
-  committed to React Flow's store, framing the stale graph (a pure style switch
-  doesn't change membership, so it would otherwise never refit the new positions
-  at all). The layout effect therefore only raises a `pendingRefit` ref; the
-  `setNodes` effect refits when that flag is set *or* a visible-membership change
-  is detected (a `prevVisibleIds` ref), so a filter keystroke (which changes
-  neither) doesn't reframe.
-- **Connected set counts self-loops.** `connectedNodeIds` reuses the layout
-  engines' `buildAdjacency`, which skips self-loops (they carry no positioning
-  information). A table whose only edge is a self-reference is therefore absent
-  from the adjacency map, so App folds self-loop endpoints back into
-  `connectedNodeIds` directly — otherwise "hide unconnected" would drop a
-  genuinely related table.
-- **Selection survives re-derivation.** `renderEdges` is a pure derivation from
-  `baseEdges` and carries no `selected` flag, so writing it through `setEdges`
-  on a hide-toggle would drop the user's selected edge and silently clear the
-  column highlight it drives. The `setEdges` effect therefore re-applies the
-  live `selected` ids (read from the functional-updater's `prev`) onto the
-  freshly derived edges.
-
-**Example**
-- `webview/src/App.tsx` — `baseNodes`/`baseEdges` hold the full laid-out graph; `adjacency` memo keyed on `[baseEdges]` builds the neighbour map once per reload; `connectedNodeIds` (adjacency keys plus self-loop endpoints) drives the hide toggle; `renderNodes` (filter highlights, hide-toggle removes islands) / `renderEdges` (keep every edge between visible nodes) feed two effects that push into the `useNodesState`/`useEdgesState` setters; the layout effect raises `pendingRefit` and the `setNodes` effect refits on that flag or a `prevVisibleIds`-tracked membership change; the `setEdges` effect re-applies the live `selected` ids; `onNodesChangeWithSync` writes drag-end positions back into `baseNodes` so manual arrangement survives re-decoration.
-
-### 18. Layout strategy (pluggable arrangement engines)
-
-**Theory** — The canvas arrangement is a strategy selected by a `LayoutStyle`
-string: `toFlowGraph(payload, style)` dispatches to one positioning engine, each
-taking `(nodes, edges)` and returning `LaidOutNode[]`. Adding an arrangement is a
-new engine module plus one `runLayout` branch — no caller changes. The set of
-styles is a single source of truth (`LAYOUT_STYLES`): the `LayoutStyle` union,
-the persisted-state validator (`isLayoutStyle`), and the Toolbar's button list
-all derive from it, so adding a style is one edit plus an engine and an icon. The
-choice is persisted via the webview state API so a reload restores it. Three
-engines: hierarchical (dagre LR), radial (tidy-tree star), and force (spring
-simulation). The force engine is the best fit for star/snowflake schemas — a
-dimension shared by many facts settles *among* them so every edge stays short,
-which a tree/radial layout structurally can't do (it only shortens one
-spanning-tree edge per node). Both radial and force finish with the shared
-`relaxOverlaps` sweep (in `overlap.ts`) that guarantees no two cards collide —
-the one place the anti-overlap logic lives, fed by either layout's near-resolved
-positions. The radial and force engines also share their graph + geometry
-primitives (undirected adjacency, connected/island split, BFS components, island
-grid packer, `buildDimensions`, the `centreToTopLeft` half-dimension offset, and
-centre→top-left bbox normalisation) from `graph.ts` — adding a graph engine
-composes those helpers rather than re-deriving them. The hierarchical engine
-shares the same two — dagre also pre-sizes via `buildDimensions` and converts its
-centre coordinates with `centreToTopLeft`, so the one offset lives in a single
-helper rather than once per engine. The default is
-`radial`. The repulsion divisor in `force.ts` is floored (`MIN_DIST`) so two
-near-coincident bodies can't blow it up to Infinity/NaN.
+- **Theming crosses the boundary as CSS variables.** `VSCODE_THEME` maps
+  `--vscode-*` tokens onto the package's `ErdTheme` keys (which become `--erd-*`
+  variables), so the packaged ERD inherits the editor theme without the package
+  knowing VS Code exists. The object is declared `as const satisfies ErdTheme` —
+  a pre-declared const bypasses excess-property checking at the prop site, so
+  `satisfies` is what makes a typo'd or renamed theme key a compile error
+  instead of a silent no-op.
+- **Resource colors are host overrides.** `RESOURCE_META` overrides only the
+  `source` entry (dbt-orange `#FF694A`, `database` icon); the package
+  shallow-merges it over its `DEFAULT_RESOURCE_META`, so models/seeds/snapshots
+  keep the package scheme while the minimap preserves the orange source signal
+  the pre-package shell drew. The merge replaces whole entries, not fields —
+  an override must restate the icon it wants to keep.
+- **Layout choice is host state.** The style is validated with the package's
+  `isLayoutStyle`, defaulted from its `DEFAULT_LAYOUT` (imported, never
+  re-declared — a local copy could silently drift from the package default),
+  and persisted via the webview state API so a reload restores it.
+  `Toolbar`'s `LAYOUT_META` is a `Record<LayoutStyle, …>` over the package's
+  `LAYOUT_STYLES`, so a package upgrade that adds a style is a compile error
+  until its button is defined.
+- **The details pane stores an id, not a node.** `activeNodeId` + a
+  `useMemo` over the current payload re-derive the `ErdNode`, so a
+  `dbterd.refresh` shows fresh columns and closes the pane if the node
+  disappeared — a stored node object would keep rendering the stale snapshot,
+  because the package only calls `onNodeActivate` on clicks, never on data
+  swaps.
+- **The badge counts the rendered universe.** The toolbar's "N/M" filter badge
+  counts over connected-only nodes while hide-unconnected is on (connectivity =
+  appears as either endpoint of any edge, self-loops included), matching what
+  the canvas actually draws.
+- **Every prop handed to `memo(Toolbar)` is referentially stable** — `useState`
+  setters or `useCallback`-wrapped toggles — so the toolbar skips re-rendering
+  on canvas-driven state churn.
+- **Expand-all is a one-shot assertion, not a stored toggle.** The package
+  applies `expandAll` only on defined value *changes* (`expandAll !== undefined`
+  guard inside its sync effect), so the host treats the prop as a command
+  channel: `toggleExpandAll` asserts the opposite of the package-reported
+  `allExpanded` (the same value the button label reads), and
+  `onExpandStateChange` stores the report then resets the prop to `undefined`.
+  The reset is inert (undefined never mutates the canvas) but guarantees the
+  next click is a genuine prop transition. Both naive alternatives fail after a
+  per-card toggle inside the canvas: a blindly-flipped boolean inverts the
+  button (label says "Expand all", the flip collapses everything), and syncing
+  the prop to the reported state re-fires the package effect and collapses all
+  cards on a single manual collapse.
 
 **Example**
-- `webview/src/layout/index.ts` — `LAYOUT_STYLES` (the one ordered list of styles; `LayoutStyle` is `typeof LAYOUT_STYLES[number]`, `isLayoutStyle` is its type guard), `DEFAULT_LAYOUT` (`radial`), `runLayout(payload, style)` dispatch, `toFlowGraph(payload, style)`.
-- `webview/src/layout/dagre.ts` — `runDagreLayout` (hierarchical LR; pre-sizes via `buildDimensions`, converts via `centreToTopLeft`).
-- `webview/src/layout/radial.ts` — `runRadialLayout` (`layoutCluster` tidy-tree + `relaxOverlaps`).
-- `webview/src/layout/force.ts` — `runForceLayout` (`simulate` spring/repulsion + `relaxOverlaps`).
-- `webview/src/layout/overlap.ts` — `relaxOverlaps(ids, centres, dims, pad)`, shared by radial + force; also the canonical `Point` type (re-exported from `composite-edge/geometry`, so the layout engines and the FK-edge geometry share one `{x, y}`).
-- `webview/src/layout/graph.ts` — `buildAdjacency` / `splitConnected` / `findComponents` / `layoutIslandGrid` / `buildDimensions` / `centreToTopLeft` / `normalizeToOrigin`, shared by dagre + radial + force.
-- `webview/src/components/Toolbar.tsx` — `LAYOUT_META` (a `Record<LayoutStyle, …>` of per-style label/tooltip/icon) iterated over `LAYOUT_STYLES`, so a new style is a compile error until its button is defined.
-- `webview/src/App.tsx` — `layout` state seeded from `loadPersistedLayout()` (validated via `isLayoutStyle`), persisted in the `[layout]` effect via `getVsCodeApi().setState`; `payloadVersion` + the `[layout, payloadVersion]` effect make positioning single-owner so a fetch and a style switch can't both lay out the same payload.
-
-### 19. Self-drawing FK edges (auto side + collapse-safe)
-
-**Theory** — Both FK edge kinds are custom React Flow edge types that paint their
-own SVG `<path>` from node geometry rather than binding to a static
-`sourceHandle`/`targetHandle`. Each endpoint anchors on the FK column's **row**,
-computed from the column's *index* in the rendered list (not React Flow's
-`handleBounds`, which only exist for visible rows and lag re-measurement after an
-expand/collapse). A column hidden under the "N more" collapse anchors at the
-collapse boundary, so its edge sits on the card edge instead of piling many edges
-onto one table-level handle. The side (left/right card edge) each endpoint faces
-is picked from the two nodes' relative X by the **single** `endpointSides(from,
-to)` helper in `edge-anchor.ts` — it returns `{fromIsLeft, toIsLeft}` so neither
-edge component reimplements the comparison. This matters because the boolean is
-polarity-sensitive (`resolveAnchor`'s `sideIsLeft` means the left card edge,
-while `bundlePoint`'s flag means the right one): one shared helper that hands
-back both already-resolved sides is the only place the comparison lives, so the
-single- and composite-column edges can't end up with inverted polarity. Both
-edge kinds also build their `AnchorNode` view through one shared `anchorNodeOf`
-adapter, so they can't drift in how they read node geometry either. Because the anchor needs the live collapse
-state, expand state is **lifted to App** (`expandedNodeIds`) and stamped onto node
-data (`__expanded` + `__onToggleExpand`) so both `ErdTableNode` and the edge read
-one source of truth. Lifting it also makes a global expand/collapse-all a one-line
-set operation in App (set to all collapsible ids, or clear) rather than messaging
-each card. `mapEdge` emits only `source`/`target` + column refs in
-`data`. Both edges render through React Flow's interaction layer (`BaseEdge` / an
-invisible hit-path) so a click selects them, and a selected edge feeds back the
-*other* way: App derives the FK columns of the selected edge(s) and stamps
-`__highlightColumns` so `ErdTableNode` lights up the exact joined rows. The shared
-row metrics (`HEADER_HEIGHT`, `COLUMN_HEIGHT`, …) live in `tableConstants.ts`,
-pinned to the card CSS (`box-sizing: border-box` fixed heights) and reused by
-dagre pre-sizing, so the index-based row Y lands exactly on the rendered row.
-
-**Example**
-- `webview/src/components/edge-anchor.ts` — `anchorNodeOf(internalNode)` (the shared React-Flow-node → `AnchorNode` adapter, used by both edge kinds so they can't drift), `resolveAnchor(node, column, sideIsLeft)` (an O(1) row anchor via the node's precomputed `columnIndex` map with a collapse-boundary fallback), and `endpointSides(from, to)` (the single source of truth for which card edge each endpoint faces, so the two edge kinds can't disagree on polarity).
-- `webview/src/components/single-edge/index.tsx` — `SingleEdge` (single-column FK), `type: "single"`, `BaseEdge`-rendered.
-- `webview/src/components/composite-edge/index.tsx` — `CompositeEdge` (multi-column FK), `type: "composite"`.
-- `webview/src/components/column-highlight.ts` — `columnsForSelectedEdges(edges)`, selected-edge → per-table columns map.
-- `webview/src/components/tableConstants.ts` — shared card pixel metrics + collapse knobs, pinned to the node CSS (and reused by dagre + the edge anchor in lockstep).
-- `webview/src/layout/index.ts` — `mapEdge(edge)` tags each edge `single`/`composite` and passes column refs via `data`, no static handles.
-- `webview/src/App.tsx` — `collapsibleIds`/`allExpanded` derive from `baseNodes`; `toggleExpandAll` sets `expandedNodeIds` to all collapsible ids or clears it, surfaced through `Toolbar`'s expand/collapse-all button.
+- `webview/src/App.tsx` — `VSCODE_THEME` / `RESOURCE_META` (both
+  `as const satisfies`), `loadPersistedLayout()` (+ the `[layout]` persist
+  effect), `activeNodeId`/`activeNode` memo, the `countedNodes` memo keyed on
+  `[payload, hideUnconnected]` feeding the `matchCount`/`totalCount` memo keyed
+  on `[countedNodes, filter]` (a keystroke re-runs only the name scan, never
+  the edge-set rebuild), `toggleHideUnconnected`/`toggleExpandAll`/
+  `onExpandStateChange` callbacks, and the plain `setPayload(next)` assignment
+  at the api→package type boundary.
+- `webview/src/components/Toolbar.tsx` — `LAYOUT_META` over `LAYOUT_STYLES`,
+  `memo(...)` wrapper.
+- `webview/src/api/stream.ts` — returns the server-generated `ErdPayload`
+  (`webview/src/types/erd.ts`); App hands it to `<ErdFlow>` via plain
+  assignment, so the compiler checks it against the package's structural
+  `ErdPayload` on every build.
 
 ---
 
@@ -393,9 +326,17 @@ dagre pre-sizing, so the index-based row Y lands exactly on the rendered row.
     `ErdProgress`) as a field of a synthetic `_Contract` root so they all land in
     one shared `$defs` block — `json2ts` then emits one TS interface per `$def`.
     To add a model to the generated types, add it as a field on `_Contract`.
+    The generated types are consumed by the webview's api layer
+    (`webview/src/api/{client,stream}.ts`); the renderer consumes the
+    structurally-compatible `ErdPayload` type of `@datnguye/erd-flow`, which App
+    assigns to (no cast) at the `setPayload` boundary — the generated type is a
+    strict subtype of the package's looser shape, so a contract change that
+    breaks the package's expectations fails the webview typecheck instead of
+    surfacing as a runtime canvas bug.
   - **Example** — `server/src/dbterd_server/schemas/erd.py` (Pydantic) →
     `webview/src/types/erd.ts` (auto-generated; do not hand-edit) via
-    `server/src/dbterd_server/tools/codegen.py` (`_Contract`, `task sync-contract`).
+    `server/src/dbterd_server/tools/codegen.py` (`_Contract`, `task sync-contract`);
+    `webview/src/App.tsx` (`setPayload(next)`) is the api→package assignment site.
 
 - **Mirrored protocol (known DRY exception).**
   - **Theory** — The webview↔extension postMessage protocol lives in two

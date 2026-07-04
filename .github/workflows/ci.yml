@@ -68,3 +68,42 @@ jobs:
         run: npm run check-types
       - working-directory: extension
         run: npm run package
+
+  e2e:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+          cache-dependency-glob: "server/uv.lock"
+          python-version: "3.10"
+      - name: Install server into its venv
+        working-directory: server
+        run: uv sync --frozen
+      - name: Fail fast if the server module is not importable
+        run: server/.venv/bin/python -c "import dbterd_server"
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: |
+            webview/package-lock.json
+            extension/package-lock.json
+      - name: Build the webview bundle
+        working-directory: webview
+        run: |
+          npm ci
+          npm run build
+      - name: Sync webview bundle into extension media
+        run: |
+          mkdir -p extension/media
+          rsync -a --delete webview/dist/ extension/media/
+      - name: Install extension deps
+        working-directory: extension
+        run: npm ci
+      - name: Run the VS Code e2e suite under Xvfb
+        working-directory: extension
+        env:
+          DBTERD_TEST_PYTHON: ${{ github.workspace }}/server/.venv/bin/python
+        run: xvfb-run -a npm test

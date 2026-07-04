@@ -8,8 +8,8 @@ description: Use whenever any change touches the shape of the /erd JSON payload 
 The `/erd` endpoint returns one JSON object consumed by the webview. Three layers must agree on its shape:
 
 1. **`server/src/dbterd_server/schemas/erd.py`** — Pydantic models. Source of truth.
-2. **`webview/src/types/erd.ts`** — TypeScript types. Generated from #1, never hand-edited.
-3. **`webview/src/components/*.tsx`** — React consumers of the types.
+2. **`webview/src/types/erd.ts`** — TypeScript types. Generated from #1, never hand-edited. Consumed by the api layer (`webview/src/api/{client,stream}.ts`).
+3. **`@datnguye/erd-flow`'s `ErdPayload`** — the renderer's structural type. `App.tsx` casts the fetched payload to it (`next as ErdPayload`), so a contract change must stay compatible with the package's expected shape (or the package must be updated and released first).
 
 ## The shape
 
