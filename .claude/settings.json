@@ -57,6 +57,6 @@
   },
   "statusLine": {
     "type": "command",
-    "command": "\"$HOME/.claude/plugins/marketplaces/status-line-cost/scripts/claude_cost.sh\""
+    "command": "\"$HOME/.claude/plugins/marketplaces/infinitelambda/scripts/claude_cost.sh\""
   }
 }
