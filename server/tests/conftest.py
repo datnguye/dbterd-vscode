@@ -45,3 +45,13 @@ def big_project(tmp_path: Path) -> Path:
     dest = tmp_path / "big_project"
     shutil.copytree(BIG_PROJECT_ROOT, dest)
     return dest
+
+
+DBT2_FIXTURE_ROOT = Path(__file__).parent / "fixtures" / "dbt2_project"
+
+
+@pytest.fixture
+def dbt2_project(tmp_path: Path) -> Path:
+    dest = tmp_path / "dbt2"
+    shutil.copytree(DBT2_FIXTURE_ROOT, dest)
+    return dest
