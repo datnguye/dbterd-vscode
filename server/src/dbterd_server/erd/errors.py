@@ -34,3 +34,10 @@ class ConfigInvalidError(ErdBuildError):
 
     code: ErrorCode = "config_invalid"
     http_status: int = 400
+
+
+class ArtifactInvalidError(ErdBuildError):
+    """manifest.json or catalog.json exists but dbterd could not read or validate it."""
+
+    code: ErrorCode = "artifact_invalid"
+    http_status: int = 422

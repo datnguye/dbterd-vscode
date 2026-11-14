@@ -4,6 +4,7 @@ from pydantic import BaseModel
 
 ErrorCode = Literal[
     "manifest_missing",
+    "artifact_invalid",
     "project_path_missing",
     "project_path_invalid",
     "project_not_allowed",

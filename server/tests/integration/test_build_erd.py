@@ -3,12 +3,15 @@ import shutil
 from pathlib import Path
 from unittest.mock import patch
 
+import click
 import pytest
+from artifact_parser.core.exceptions import ArtifactParserError
 from dbterd.core.registry.plugin_registry import PluginRegistry
+from pydantic import ValidationError
 
 from dbterd_server.erd import builder
 from dbterd_server.erd.cache import ErdCache
-from dbterd_server.erd.errors import ErdBuildError, ManifestMissingError
+from dbterd_server.erd.errors import ArtifactInvalidError, ErdBuildError, ManifestMissingError
 from tests.conftest import FIXTURE_ROOT
 
 # Tests that need to observe or inject parse_artifacts behavior go through the
@@ -239,3 +242,54 @@ def test_uses_fallback_resource_type(
     monkeypatch.setattr(_default_algo_class, "parse_artifacts", patched)
     result = builder.build_erd(str(fixture_project), cache)
     assert result.payload.nodes[0].resource_type == "model"
+
+
+def test_dbt2_manifest_with_unit_tests_builds(dbt2_project: Path, cache: ErdCache) -> None:
+    result = builder.build_erd(str(dbt2_project), cache)
+    assert result.catalog_missing is True
+    assert len(result.payload.nodes) == 13
+    assert len(result.payload.edges) == 3
+
+
+@pytest.mark.parametrize("content", ["{", '{"metadata": {}, "nodes": 1}'])
+def test_invalid_manifest_raises_artifact_invalid(
+    content: str, fixture_project: Path, cache: ErdCache
+) -> None:
+    (fixture_project / "target" / "manifest.json").write_text(content)
+    with pytest.raises(ArtifactInvalidError, match="manifest.json: .*Re-run dbt"):
+        builder.build_erd(str(fixture_project), cache)
+
+
+def test_invalid_catalog_names_the_catalog(fixture_project: Path, cache: ErdCache) -> None:
+    (fixture_project / "target" / "catalog.json").write_text("{")
+    with pytest.raises(ArtifactInvalidError, match="catalog.json: "):
+        builder.build_erd(str(fixture_project), cache)
+
+
+def test_non_file_dbterd_errors_are_not_artifact_errors(
+    fixture_project: Path, cache: ErdCache
+) -> None:
+    with (
+        patch.object(
+            _default_algo_class, "parse_artifacts", side_effect=click.UsageError("bad rule")
+        ),
+        pytest.raises(click.UsageError),
+    ):
+        builder.build_erd(str(fixture_project), cache)
+
+
+@pytest.mark.parametrize(
+    "raised",
+    [
+        ArtifactParserError("bad schema"),
+        ValidationError.from_exception_data("Manifest", []),
+    ],
+)
+def test_dbterd_validation_errors_map_to_artifact_invalid(
+    raised: Exception, fixture_project: Path, cache: ErdCache
+) -> None:
+    with (
+        patch.object(_default_algo_class, "parse_artifacts", side_effect=raised),
+        pytest.raises(ArtifactInvalidError, match="manifest.json"),
+    ):
+        builder.build_erd(str(fixture_project), cache)
