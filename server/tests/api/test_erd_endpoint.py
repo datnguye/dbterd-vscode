@@ -91,3 +91,10 @@ def test_request_id_header_is_propagated(fixture_project: Path) -> None:
     client = _client_for(str(fixture_project))
     response = client.get("/erd", headers={"X-Request-ID": "test-id-123"})
     assert response.headers["X-Request-ID"] == "test-id-123"
+
+
+def test_invalid_manifest_returns_422(fixture_project: Path) -> None:
+    (fixture_project / "target" / "manifest.json").write_text("{")
+    resp = _client_for(str(fixture_project)).get("/erd")
+    assert resp.status_code == 422
+    assert resp.json()["code"] == "artifact_invalid"

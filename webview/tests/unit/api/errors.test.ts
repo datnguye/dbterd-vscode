@@ -22,6 +22,7 @@ describe("remediationHint", () => {
   it("returns a hint for each known code", () => {
     for (const code of [
       "manifest_missing",
+      "artifact_invalid",
       "project_path_missing",
       "project_path_invalid",
       "project_not_allowed",
@@ -30,5 +31,9 @@ describe("remediationHint", () => {
     ] as const) {
       expect(remediationHint(code)).toBeTruthy();
     }
+  });
+
+  it("gives artifact_invalid its own hint instead of the generic fallback", () => {
+    expect(remediationHint("artifact_invalid")).not.toBe(remediationHint("unknown"));
   });
 });

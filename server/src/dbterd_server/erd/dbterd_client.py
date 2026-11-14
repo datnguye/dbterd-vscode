@@ -14,10 +14,13 @@ from contextlib import contextmanager
 from pathlib import Path
 from typing import Any
 
+import click
+from artifact_parser.core.exceptions import ArtifactParserError
 from dbterd.api import DbtErd
 from dbterd.core.registry.plugin_registry import PluginRegistry
+from pydantic import ValidationError
 
-from dbterd_server.erd.errors import ConfigInvalidError
+from dbterd_server.erd.errors import ArtifactInvalidError, ConfigInvalidError
 
 _DEFAULT_ALGO = "test_relationship"
 
@@ -35,7 +38,20 @@ def invoke_dbterd(
         # override them: the mappers assume the json target's payload shape, and
         # the artifacts dir is the one we resolved (real or synthetic-catalog).
         kwargs: dict[str, Any] = {**config, "target": "json", "artifacts_dir": str(artifacts_dir)}
-        return DbtErd(**kwargs).get_erd()
+        try:
+            return DbtErd(**kwargs).get_erd()
+        except (click.FileError, ValidationError, ArtifactParserError) as err:
+            raise ArtifactInvalidError(_artifact_invalid_message(target_dir, err)) from err
+
+
+def _artifact_invalid_message(target_dir: Path, err: Exception) -> str:
+    """Name the artifact dbterd rejected (FileError carries it) and how to regenerate it."""
+    filename = getattr(err, "filename", None) or "manifest.json"
+    first_line = str(err).strip().splitlines()[0] if str(err).strip() else type(err).__name__
+    return (
+        f"dbterd could not read {target_dir / filename}: {first_line}. "
+        "Re-run dbt (`dbt compile`, or `dbt docs generate` for catalog.json) to regenerate it."
+    )
 
 
 @contextmanager

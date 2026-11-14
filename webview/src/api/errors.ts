@@ -5,6 +5,7 @@
 
 export type ErdErrorCode =
   | "manifest_missing"
+  | "artifact_invalid"
   | "project_path_missing"
   | "project_path_invalid"
   | "project_not_allowed"
@@ -34,6 +35,8 @@ export function classifyErdError(body: unknown, status: number): ErdApiError {
 
 const REMEDIATION: Record<ErdErrorCode, string> = {
   manifest_missing: "Run `dbt compile` in the project root, then refresh.",
+  artifact_invalid:
+    "manifest.json or catalog.json is corrupt or failed validation. Re-run dbt to regenerate it, then refresh.",
   project_path_missing: "Set `dbterd.dbtProjectPath` in VS Code settings.",
   project_path_invalid: "The configured project path doesn't exist on disk.",
   project_not_allowed: "Project path not in the allow-list. Restart the server with --allow-project.",
